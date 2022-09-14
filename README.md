@@ -1,1 +1,1 @@
-# cpsc464-group2
+# CPSC 464 Group 2 Project
