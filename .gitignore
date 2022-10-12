@@ -1,4 +1,4 @@
 image_data/*
 *.xml
 breast_cancer_mri_conda.iml
-.idea
+.idea/*

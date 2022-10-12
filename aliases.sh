@@ -1,5 +1,12 @@
+# The purpose of this file is to store useful commands
+# Project was developed in pycharm community
+
 conda info --envs
+# conda remove --name cpsc464-group2
+# you can always make the env again from settings -> python interpreter -> gear -> add
 conda install keras
 conda install tensorflow
-conda install matplotlib=3.4.3
+conda install matplotlib
 pip install pydicom
+
+# target of NBIA data retriever: C:\Users\justin\PycharmProjects\cpsc464-group2\image_data
