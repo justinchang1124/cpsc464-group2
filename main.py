@@ -3,8 +3,6 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout, Conv2D, MaxPool2D, Flatten
 from keras.utils import np_utils
 
-group_mapping = ['N/A', 'white', 'black', 'asian', 'native', 'hispanic', 'multi', 'hawa', 'amer indian']
-
 # loading the dataset
 (X_train, y_train), (X_test, y_test) = cifar10.load_data()
 
