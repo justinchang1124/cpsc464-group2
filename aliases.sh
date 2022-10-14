@@ -11,3 +11,7 @@ conda install matplotlib.pylab
 pip install pydicom
 
 # target of NBIA data retriever: C:\Users\justin\PycharmProjects\cpsc464-group2\image_data
+# workflow:
+# - once a folder is downloaded by the NBIA data retriever, decrease the size of the contents
+# - - only keep the relevant passes
+# - - only keep the relevant images
