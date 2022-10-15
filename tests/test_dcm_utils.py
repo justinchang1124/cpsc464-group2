@@ -16,13 +16,11 @@ for i in range(n_dcm_files):
     dcm_studies[i] = os.path.join(*dcm_files_data[i][:-1])  # splat
 dcm_studies = sorted(list(set(dcm_studies)))
 
-dcm_studies = dcm_studies[4:]
-
 # test whether every study can be opened and viewed
 for dcm_study in dcm_studies:
     print("Viewing study: {}".format(dcm_study))
     abs_dcm_study = os.path.join(abs_data_path, dcm_study)
     dcm_images = dcm_utils.open_dcm_folder(abs_dcm_study)
-    # this last step is for frame-limiting images
+    # this last step is for viewing animations; skip if pruning files
     dcm_utils.animate_dcm_images(dcm_images, False)
 
