@@ -4,6 +4,7 @@ import matplotlib
 import glob
 from matplotlib.animation import FuncAnimation
 import cv2
+import numpy as np
 
 matplotlib.use("TkAgg") # Qt5Agg is terrible
 import matplotlib.pyplot as plt
@@ -27,10 +28,13 @@ def dcm_dir_list(abs_dir_path, use_abs=False):
 
 
 # opens a specific DCM image
-def open_dcm_image(abs_dcm_file):
+def open_dcm_image(abs_dcm_file, percentile=99):
     if not (os.path.isabs(abs_dcm_file) and os.path.isfile(abs_dcm_file)):
         raise ValueError("Not an absolute file path!")
-    return dicom.dcmread(abs_dcm_file).pixel_array
+    px_array = dicom.dcmread(abs_dcm_file).pixel_array
+    cutoff = np.percentile(px_array, percentile)
+    px_array[px_array > cutoff] = cutoff
+    return px_array / cutoff * 255.0
 
 
 # opens a set of specific DCM images
@@ -96,3 +100,5 @@ def animate_dcm_images(dcm_images, console_mode=False):
         print("To continue, close any open plots!")
         plt.show()
 
+
+print("IMPORTED: dcm_utils")
