@@ -8,6 +8,7 @@ conda info --envs
 conda install keras
 conda install tensorflow
 conda install matplotlib.pylab
+conda install opencv
 pip install pydicom
 
 # target of NBIA data retriever: C:\Users\justin\PycharmProjects\cpsc464-group2\image_data
