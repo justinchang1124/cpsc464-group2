@@ -36,20 +36,33 @@ def dcm_dir_list(abs_dir_path, use_abs=False):
     return rel_paths
 
 
+# clamps the values of an image
+def clamp_dcm_image(dcm_image, cutoff1, cutoff2):
+    dcm_image[dcm_image < cutoff1] = cutoff1
+    dcm_image[dcm_image > cutoff2] = cutoff2
+    return dcm_image
+
+
+# normalizes the values of an image to [0,1]
+def unit_dcm_image(dcm_image):
+    img_min = np.min(dcm_image)
+    img_max = np.max(dcm_image)
+    return (dcm_image - img_min) / (img_max - img_min)
+
+
 # opens a specific DCM image
-def open_dcm_image(abs_dcm_file, cutoff1=1, cutoff2=99):
+def open_dcm_image(abs_dcm_file, perc1=1, perc2=99):
     if not (os.path.isabs(abs_dcm_file) and os.path.isfile(abs_dcm_file)):
         raise ValueError("Not an absolute file path!")
     px_array = dicom.dcmread(abs_dcm_file).pixel_array
     if len(px_array.shape) != 2:
         raise ValueError("Not a two-dimensional image!")
-    # clamp the lower values
-    perc1 = np.percentile(px_array, cutoff1)
-    px_array[px_array < perc1] = perc1
-    # clamp the higher values
-    perc2 = np.percentile(px_array, cutoff2)
-    px_array[px_array > perc2] = perc2
-    return (px_array - perc1) / (perc2 - perc1) * 255.0
+    # clamp the lower / higher values
+    cutoff1 = np.percentile(px_array, perc1)
+    cutoff2 = np.percentile(px_array, perc2)
+    px_clamp = clamp_dcm_image(px_array, cutoff1, cutoff2)
+    # normalize to [0, 255]
+    return unit_dcm_image(px_clamp) * 255.0
 
 
 # opens a set of specific DCM images, allows 3D as well
@@ -79,8 +92,10 @@ def open_dcm_images(abs_dcm_files):
 
 
 # resizes a DCM image
+# warning:
 def resize_dcm_image(dcm_image, shape):
-    return cv2.resize(dcm_image, dsize=shape, interpolation=cv2.INTER_CUBIC)
+    img_cubic = cv2.resize(dcm_image, dsize=shape, interpolation=cv2.INTER_CUBIC)
+    return clamp_dcm_image(img_cubic, 0.0, 255.0) # cubic can go out-of-range
 
 
 # opens all DCM images in a folder
