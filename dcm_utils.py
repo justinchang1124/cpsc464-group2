@@ -37,15 +37,19 @@ def dcm_dir_list(abs_dir_path, use_abs=False):
 
 
 # opens a specific DCM image
-def open_dcm_image(abs_dcm_file, percentile=99):
+def open_dcm_image(abs_dcm_file, cutoff1=1, cutoff2=99):
     if not (os.path.isabs(abs_dcm_file) and os.path.isfile(abs_dcm_file)):
         raise ValueError("Not an absolute file path!")
     px_array = dicom.dcmread(abs_dcm_file).pixel_array
     if len(px_array.shape) != 2:
         raise ValueError("Not a two-dimensional image!")
-    cutoff = np.percentile(px_array, percentile)
-    px_array[px_array > cutoff] = cutoff
-    return px_array / cutoff * 255.0
+    # clamp the lower values
+    perc1 = np.percentile(px_array, cutoff1)
+    px_array[px_array < perc1] = perc1
+    # clamp the higher values
+    perc2 = np.percentile(px_array, cutoff2)
+    px_array[px_array > perc2] = perc2
+    return (px_array - perc1) / (perc2 - perc1) * 255.0
 
 
 # opens a set of specific DCM images, allows 3D as well
