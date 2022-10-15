@@ -1,79 +1,101 @@
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Conv2D, MaxPool2D, Flatten
-from keras.utils import np_utils
+from keras.utils import np_utils, Sequence
 import os
 import numpy as np
+from sklearn import model_selection
 
 # project code
-import image_testing
+import dcm_utils
+import read_metadata
 
 abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
 data_path = 'image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
 abs_data_path = os.path.join(abs_proj_path, data_path)
-dcm_files = image_testing.dcm_dir_list(abs_data_path)
+dcm_files = dcm_utils.dcm_dir_list(abs_data_path)
 n_dcm_files = len(dcm_files)
 
 dcm_files_data = []
 for file in dcm_files:
     dcm_files_data.append(file.split('\\'))
 
-dcm_studies = [None] * n_dcm_files
-for i in range(n_dcm_files):
-    dcm_studies[i] = os.path.join(*dcm_files_data[i][:-1]) # splat
-dcm_studies = sorted(list(set(dcm_studies)))
-
-# for dcm_study in dcm_studies:
-#     print(dcm_study)
-
-for i in range(6):
-    dcm_study_examp = dcm_studies[i]
-    dcm_images_examp = image_testing.open_dcm_folder(os.path.join(abs_data_path, dcm_study_examp))
-    image_testing.animate_dcm_images(dcm_images_examp)
-
-
+# open metadata
 global_ids = []
 for i in range(n_dcm_files):
     global_ids.append(dcm_files_data[i][0])
+labels, groups = read_metadata.get_labels_groups(global_ids)
+abs_dcm_files = dcm_utils.prepend_abs(abs_data_path, dcm_files)
+n_classes = len(set(labels))
 
-print("IMPORTED: image_testing.py")
+# partition into train / test / split
+unique_ids = list(set(global_ids))
+train_ids, test_ids = model_selection.train_test_split(
+    unique_ids, test_size=0.2, random_state=464)
+train_ids, valid_ids = model_selection.train_test_split(
+    train_ids, test_size=0.25, random_state=464)
 
-# Breast_MRI_001\01-01-1990-NA-MRI BREAST BILATERAL WWO-97538\11.000000-ax dyn 3rd pass-41458
-#
+X_train_files = []
+X_valid_files = []
+X_test_files = []
+y_train = []
+y_valid = []
+y_test = []
+z_train = []
+z_valid = []
+z_test = []
 
+for i in range(n_dcm_files):
+    gid = global_ids[i]
+    if gid in train_ids:
+        X_train_files.append(abs_dcm_files[i])
+        y_train.append(labels[i])
+        z_train.append(groups[i])
+    if gid in valid_ids:
+        X_valid_files.append(abs_dcm_files[i])
+        y_valid.append(labels[i])
+        z_valid.append(groups[i])
+    if gid in test_ids:
+        X_test_files.append(abs_dcm_files[i])
+        y_test.append(labels[i])
+        z_test.append(groups[i])
 
-# dcm_study_examp = dcm_studies[0]
-# dcm_images_examp = open_dcm_images(os.path.join(abs_data_path, dcm_study_examp))
-# x1 = animate_dcm_images(dcm_images_examp[0:80])
-# plt.show()
-
-
-
-
-# def get_sample_from_dcm_mat(dcm_loc_mat, samp_name):
-#     num_matches = 0
-#     for i in range(dcm_loc_mat.shape[0]):
-#         if dcm_loc_mat[i][0] == samp_name:
-#             num_matches += 1
-#
-#     np_copy = np.empty(shape=(num_matches, dcm_loc_mat.shape[1]), dtype=dcm_loc_mat.dtype)
-#     num_matches = 0
-#     for i in range(dcm_loc_mat.shape[0]):
-#         if dcm_loc_mat[i][0] == samp_name:
-#             np_copy[num_matches] = dcm_loc_mat[i]
-#             num_matches += 1
-#
-#     return np_copy
-
-
-
-# goal:
-# 1. filter down a DCM image set
-# 2. filter down
 
 # loading the dataset
-labels, groups = get_labels_groups(global_ids)
-abs_dcm_files = dcm_dir_list(abs_data_path, abs=True)
-dcm_images = open_dcm_images(abs_dcm_files)
+class storage_data_generator(Sequence):
+
+    def __init__(self, t_abs_dcm_files, t_labels, t_shape, batch_size):
+        self.abs_dcm_files = t_abs_dcm_files
+        self.labels = t_labels
+        self.shape = t_shape
+        self.batch_size = batch_size
+
+    def __len__(self):
+        n_samp = len(self.abs_dcm_files)
+        n_batch = np.ceil(n_samp / float(self.batch_size))
+        return n_batch.astype(np.int)
+
+    def __getitem__(self, idx):
+        i1 = idx * self.batch_size
+        i2 = (idx + 1) * self.batch_size
+
+        x_files = self.abs_dcm_files[i1:i2]
+        x_images = dcm_utils.open_dcm_images(x_files)
+        batch_x = dcm_utils.dcm_images_to_np3d(x_images, self.t_shape)
+
+        y_labels = self.labels[i1:i2]
+        batch_y = np.array(y_labels)
+
+        return batch_x, batch_y
+
+
+X_train_gen = storage_data_generator(X_train_files, y_train, (128, 128), 32)
+X_valid_gen = storage_data_generator(X_valid_files, y_valid, (128, 128), 32)
+X_test_gen = storage_data_generator(X_test_files, y_test, (128, 128), 32)
+
+
+
+dcm_images = dcm_utils.open_dcm_images(abs_dcm_files[0:99])
+dcm_np3d = dcm_utils.dcm_images_to_np3d(dcm_images, (128, 128))
 
 X_train = np.empty((1000, 128, 128))
 X_valid = np.empty((500, 128, 128))
@@ -90,11 +112,11 @@ for i in range(501):
     if i > 180:
         lind -= 1
 
-    X_train[2*lind] = image_testing.resize_dcm_image(dcm_images[rind], i_xy)
-    X_train[2*lind + 1] = image_testing.resize_dcm_image(dcm_images[rind+1], i_xy)
-    X_valid[lind] = image_testing.resize_dcm_image(dcm_images[rind+2], i_xy)
-    X_test[2*lind] = image_testing.resize_dcm_image(dcm_images[rind+3], i_xy)
-    X_test[2*lind + 1] = image_testing.resize_dcm_image(dcm_images[rind+4], i_xy)
+    X_train[2*lind] = dcm_utils.resize_dcm_image(dcm_images[rind], i_xy)
+    X_train[2*lind + 1] = dcm_utils.resize_dcm_image(dcm_images[rind + 1], i_xy)
+    X_valid[lind] = dcm_utils.resize_dcm_image(dcm_images[rind+2], i_xy)
+    X_test[2*lind] = dcm_utils.resize_dcm_image(dcm_images[rind + 3], i_xy)
+    X_test[2*lind + 1] = dcm_utils.resize_dcm_image(dcm_images[rind + 4], i_xy)
 
 del(dcm_images)
 
