@@ -10,6 +10,17 @@ matplotlib.use("TkAgg") # Qt5Agg is terrible
 import matplotlib.pyplot as plt
 
 
+# prepends an absolute path to a list of relative paths
+def prepend_abs(abs_dir_path, rel_paths):
+    if not (os.path.isabs(abs_dir_path) and os.path.isdir(abs_dir_path)):
+        raise ValueError("Not an absolute value path!")
+    n = len(rel_paths)
+    result = [None] * n
+    for i in range(n):
+        result[i] = os.path.join(abs_dir_path, rel_paths[i])
+    return result
+
+
 # recursively gets the locations of all DCM files in abs_base_path/folder
 # abs_dir_path: an absolute path to a directory
 # abs: if True, return absolute locations (otherwise return relative locations)
@@ -18,13 +29,11 @@ def dcm_dir_list(abs_dir_path, use_abs=False):
         raise ValueError("Not an absolute value path!")
     cur_cwd = os.getcwd()
     os.chdir(abs_dir_path)
-    result = list(glob.iglob('**/*.dcm', recursive=True))
+    rel_paths = list(glob.iglob('**/*.dcm', recursive=True))
     os.chdir(cur_cwd)
     if use_abs:
-        n = len(result)
-        for i in range(n):
-            result[i] = os.path.join(abs_dir_path, result[i])
-    return result
+        return prepend_abs(abs_dir_path, rel_paths)
+    return rel_paths
 
 
 # opens a specific DCM image
@@ -32,9 +41,28 @@ def open_dcm_image(abs_dcm_file, percentile=99):
     if not (os.path.isabs(abs_dcm_file) and os.path.isfile(abs_dcm_file)):
         raise ValueError("Not an absolute file path!")
     px_array = dicom.dcmread(abs_dcm_file).pixel_array
+    if len(px_array.shape) != 2:
+        raise ValueError("Not a two-dimensional image!")
     cutoff = np.percentile(px_array, percentile)
     px_array[px_array > cutoff] = cutoff
     return px_array / cutoff * 255.0
+
+
+# opens a set of specific DCM images, allows 3D as well
+# def open_dcm_images(abs_dcm_files):
+#     result = []
+#     for abs_dcm_file in abs_dcm_files:
+#         dcm_image = open_dcm_image(abs_dcm_file)
+#         n_dim = len(dcm_image.shape)
+#         if n_dim == 2:
+#             result.append(dcm_image)
+#         elif n_dim == 3:
+#             for i in range(dcm_image.shape[0]):
+#                 result.append(dcm_image[i])
+#         else:
+#             raise ValueError("Not a 2D or 3D DCM image!")
+#
+#     return result
 
 
 # opens a set of specific DCM images
@@ -54,6 +82,15 @@ def resize_dcm_image(dcm_image, shape):
 # opens all DCM images in a folder
 def open_dcm_folder(abs_dir_path):
     return open_dcm_images(dcm_dir_list(abs_dir_path, use_abs=True))
+
+
+# converts a list of DCM images into an array of DCM images, with resize
+def dcm_images_to_np3d(dcm_images, shape):
+    n = len(dcm_images)
+    result = np.empty((n, *shape))  # splat
+    for i in range(n):
+        result[i] = resize_dcm_image(dcm_images[i], shape)
+    return result
 
 
 # animates a list of DCM images [each a 2D numpy array]
