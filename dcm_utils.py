@@ -49,11 +49,11 @@ def resize_dcm_image(dcm_image, shape):
 
 # opens all DCM images in a folder
 def open_dcm_folder(abs_dir_path):
-    return open_dcm_images(dcm_dir_list(abs_dir_path, abs=True))
+    return open_dcm_images(dcm_dir_list(abs_dir_path, use_abs=True))
 
 
 # animates a list of DCM images [each a 2D numpy array]
-def animate_dcm_images(dcm_images):
+def animate_dcm_images(dcm_images, console_mode=False):
     if not isinstance(dcm_images, list):
         raise ValueError("Images must be provided as a list!")
 
@@ -85,6 +85,14 @@ def animate_dcm_images(dcm_images):
 
     # 17 milliseconds per frame yields 58-60 FPS
     fig.canvas.mpl_connect('button_press_event', on_click)
+
     anim = FuncAnimation(plt.gcf(), update, frames=n, interval=17, blit=True)
-    plt.show()
-    input("To continue, close any open plots and press enter!")
+
+    if console_mode:
+        plt.show()
+        plt.pause(3600 * 24)  # pause for 1 day
+        input("To continue, close any open plots and press enter!")
+    else:
+        print("To continue, close any open plots!")
+        plt.show()
+

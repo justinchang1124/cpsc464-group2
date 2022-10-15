@@ -1,10 +1,10 @@
-import image_testing
+import dcm_utils
 import os
 
 abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
 data_path = 'image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
 abs_data_path = os.path.join(abs_proj_path, data_path)
-dcm_files = image_testing.dcm_dir_list(abs_data_path)
+dcm_files = dcm_utils.dcm_dir_list(abs_data_path)
 n_dcm_files = len(dcm_files)
 
 dcm_files_data = []
@@ -20,6 +20,6 @@ dcm_studies = sorted(list(set(dcm_studies)))
 #     print(dcm_study)
 
 for i in range(6):
-    dcm_study_examp = dcm_studies[i]
-    dcm_images_examp = image_testing.open_dcm_folder(os.path.join(abs_data_path, dcm_study_examp))
-    image_testing.animate_dcm_images(dcm_images_examp)
+    abs_dcm_study_examp = os.path.join(abs_data_path, dcm_studies[i])
+    dcm_images_examp = dcm_utils.open_dcm_folder(abs_dcm_study_examp)
+    dcm_utils.animate_dcm_images(dcm_images_examp, True)
