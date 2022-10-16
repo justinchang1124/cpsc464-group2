@@ -92,10 +92,10 @@ def open_dcm_images(abs_dcm_files):
 
 
 # resizes a DCM image
-# warning:
+# note: what interpolation method should be used?
 def resize_dcm_image(dcm_image, shape):
     img_cubic = cv2.resize(dcm_image, dsize=shape, interpolation=cv2.INTER_CUBIC)
-    return clamp_dcm_image(img_cubic, 0.0, 255.0) # cubic can go out-of-range
+    return clamp_dcm_image(img_cubic, 0.0, 255.0)  # cubic can go out-of-range
 
 
 # opens all DCM images in a folder
