@@ -18,12 +18,6 @@ pip install pydicom
 # - - only keep the relevant passes
 # - - only keep the relevant images
 
-# MODIFIED: 222, 231, 233, 243, 246
-# DELETED: 002, 008, 018, 026, 047, 048, 053, 057, 059, 061, 064, 091, 092, 102, 117, 137,
-# 145, 153, 154, 162, 180, 185, 187, 196, 197, 208, 221, 227,
-
-
-
 # STEPS:
 # - get rid of segmentation files manually
 # - get rid of images that are too 'far out' (not correctly bounded on each side)

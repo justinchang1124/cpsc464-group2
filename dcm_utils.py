@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 
 # prepends an absolute path to a list of relative paths
+# abs_dir_path: an absolute directory path
 def prepend_abs(abs_dir_path, rel_paths):
     if not (os.path.isabs(abs_dir_path) and os.path.isdir(abs_dir_path)):
         raise ValueError("Not an absolute value path!")
