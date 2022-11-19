@@ -52,22 +52,42 @@ def unit_dcm_image(dcm_image):
     return (dcm_image - img_min) / (img_max - img_min)
 
 
-# opens a specific DCM image
-# note: if neither percentile is not specified, do not resize or clamp
-def open_dcm_image(abs_dcm_file, perc1=1, perc2=99):
-    if not (os.path.isabs(abs_dcm_file) and os.path.isfile(abs_dcm_file)):
-        raise ValueError("Not an absolute file path!")
-    px_array = dicom.dcmread(abs_dcm_file).pixel_array
-    if len(px_array.shape) != 2:
-        raise ValueError("Not a two-dimensional image!")
-    if perc1 is None and perc2 is None:
-        return px_array
+# clamps the values of an image by percentile
+# note: if the percentile range contains [0, 100], do nothing
+def perc_clamp_dcm_image(dcm_image, perc1=1, perc2=99):
+    if perc1 <= 0 and perc2 >= 100:
+        return dcm_image
     # clamp the lower / higher values
-    cutoff1 = np.percentile(px_array, perc1)
-    cutoff2 = np.percentile(px_array, perc2)
-    px_clamp = clamp_dcm_image(px_array, cutoff1, cutoff2)
+    cutoff1 = np.percentile(dcm_image, perc1)
+    cutoff2 = np.percentile(dcm_image, perc2)
+    px_clamp = clamp_dcm_image(dcm_image, cutoff1, cutoff2)
     # normalize to [0, 255]
     return unit_dcm_image(px_clamp) * 255.0
+
+
+# opens a DCM file
+def open_dcm(abs_dcm_file):
+    if not (os.path.isabs(abs_dcm_file) and os.path.isfile(abs_dcm_file)):
+        raise ValueError("Not an absolute file path!")
+    return dicom.dcmread(abs_dcm_file)
+
+
+# opens a specific DCM image
+# note: if the percentile range contains [0, 100], do nothing
+def open_dcm_image(abs_dcm_file, perc1=1, perc2=99):
+    px_array = open_dcm(abs_dcm_file).pixel_array
+    if len(px_array.shape) != 2:
+        raise ValueError("Not a two-dimensional image!")
+    return perc_clamp_dcm_image(px_array, perc1, perc2)
+
+
+# opens a DCM file, downsamples it, and saves it
+def downsample_dcm_file(abs_dcm_file, shape):
+    dcm_data = open_dcm(abs_dcm_file)
+    px_array = dcm_data.pixel_array
+    dcm_data.PixelData = resize_dcm_image(px_array, shape).tobytes()
+    dcm_data.Rows, dcm_data.Columns = shape
+    dicom.dcmwrite(abs_dcm_file, dcm_data)
 
 
 # opens a set of specific DCM images, allows 3D as well
@@ -110,7 +130,7 @@ def test_dcm_folder(abs_dir_path):
         return False
     dcm_first_image = folder_images[0]
     try:
-        open_dcm_image(dcm_first_image, None, None)
+        open_dcm_image(dcm_first_image, 0, 100)
         return True
     except:
         return False
@@ -123,11 +143,16 @@ def open_dcm_folder(abs_dir_path):
 
 
 # converts a list of DCM images into an array of DCM images, with resize
-def dcm_images_to_np3d(dcm_images, shape):
+def dcm_images_to_np3d(dcm_images):
     n = len(dcm_images)
+    if n < 1:
+        raise ValueError("A positive number of images is required!")
+    shape = dcm_images[0].shape
     result = np.empty((n, *shape))  # splat
     for i in range(n):
-        result[i] = resize_dcm_image(dcm_images[i], shape)
+        if dcm_images[i].shape != shape:
+            raise ValueError("Not all images have the expected shape!")
+        result[i] = dcm_images[i]
     return result
 
 

@@ -12,21 +12,14 @@ conda install opencv
 conda install scikit-learn
 pip install pydicom
 
-# target of NBIA data retriever: C:\Users\justin\PycharmProjects\cpsc464-group2\image_data
-# workflow:
-# - once a folder is downloaded by the NBIA data retriever, decrease the size of the contents
-# - - only keep the relevant passes
-# - - only keep the relevant images
-
-# STEPS:
-# - get rid of segmentation files manually
-# - get rid of images that are too 'far out' (not correctly bounded on each side)
-# - make training / testing / validation on a per-sample basis
-
-# note: you can edit the .tcia manifest, current split:
+# Step 1: split the .tcia manifest, perhaps like below:
 # P1: 0-25%
 # P2: 50%-100%
 # P3: 25%-50%
 
+# target of NBIA data retriever: C:\Users\justin\PycharmProjects\cpsc464-group2\image_data
 
-# idea: simply sample the middle image from each scan
+# For each part:
+# Step 2: use test_dcm_utils.py to find and remove unopenable images
+# Step 3: use filtering.py to find and remove unnecessary images
+# Step 4: use downsample.py to standardize the resolution of each dicom file
