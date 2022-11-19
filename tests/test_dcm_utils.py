@@ -17,10 +17,21 @@ for i in range(n_dcm_files):
 dcm_studies = sorted(list(set(dcm_studies)))
 
 # test whether every study can be opened and viewed
+invalid_studies = []
 for dcm_study in dcm_studies:
     print("Viewing study: {}".format(dcm_study))
     abs_dcm_study = os.path.join(abs_data_path, dcm_study)
-    dcm_images = dcm_utils.open_dcm_folder(abs_dcm_study)
-    # this last step is for viewing animations; skip if pruning files
-    dcm_utils.animate_dcm_images(dcm_images, False)
+    if not dcm_utils.test_dcm_folder(abs_dcm_study):
+        invalid_studies.append(dcm_study)
+print(invalid_studies)
+
+animate_studies = False
+# animate all openable studies if requested
+if animate_studies:
+    for dcm_study in dcm_studies:
+        if dcm_study not in invalid_studies:
+            abs_dcm_study = os.path.join(abs_data_path, dcm_study)
+            dcm_images = dcm_utils.open_dcm_folder(abs_dcm_study)
+            dcm_utils.animate_dcm_images(dcm_images, False)
+
 
