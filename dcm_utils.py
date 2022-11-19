@@ -6,7 +6,8 @@ from matplotlib.animation import FuncAnimation
 import cv2
 import numpy as np
 
-matplotlib.use("TkAgg") # Qt5Agg is terrible
+# Qt5Agg does not function
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
 
