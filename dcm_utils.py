@@ -53,12 +53,15 @@ def unit_dcm_image(dcm_image):
 
 
 # opens a specific DCM image
+# note: if neither percentile is not specified, do not resize or clamp
 def open_dcm_image(abs_dcm_file, perc1=1, perc2=99):
     if not (os.path.isabs(abs_dcm_file) and os.path.isfile(abs_dcm_file)):
         raise ValueError("Not an absolute file path!")
     px_array = dicom.dcmread(abs_dcm_file).pixel_array
     if len(px_array.shape) != 2:
         raise ValueError("Not a two-dimensional image!")
+    if perc1 is None and perc2 is None:
+        return px_array
     # clamp the lower / higher values
     cutoff1 = np.percentile(px_array, perc1)
     cutoff2 = np.percentile(px_array, perc2)
@@ -107,7 +110,7 @@ def test_dcm_folder(abs_dir_path):
         return False
     dcm_first_image = folder_images[0]
     try:
-        x = open_dcm_image(dcm_first_image)
+        open_dcm_image(dcm_first_image, None, None)
         return True
     except:
         return False
