@@ -100,6 +100,20 @@ def resize_dcm_image(dcm_image, shape):
     return clamp_dcm_image(img_cubic, 0.0, 255.0)  # cubic can go out-of-range
 
 
+# tests whether a folder contains openable DCM images
+def test_dcm_folder(abs_dir_path):
+    folder_images = dcm_dir_list(abs_dir_path, use_abs=True)
+    if len(folder_images) < 1:
+        return False
+    dcm_first_image = folder_images[0]
+    try:
+        x = open_dcm_image(dcm_first_image)
+        return True
+    except:
+        return False
+    return False
+
+
 # opens all DCM images in a folder
 def open_dcm_folder(abs_dir_path):
     return open_dcm_images(dcm_dir_list(abs_dir_path, use_abs=True))
