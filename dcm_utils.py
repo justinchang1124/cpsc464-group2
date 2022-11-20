@@ -83,6 +83,8 @@ def open_dcm_image(abs_dcm_file, perc1=1, perc2=99):
 
 # opens a DCM file, downsamples it, and saves it
 def downsample_dcm_file(abs_dcm_file, shape):
+    if len(shape) != 2:
+        raise ValueError("Not a two-dimensional shape for downsampling!")
     dcm_data = open_dcm(abs_dcm_file)
     # no point in resizing if the shape is already correct
     if shape == dcm_data.pixel_array.shape:
