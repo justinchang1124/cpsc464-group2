@@ -10,7 +10,6 @@ import pprint
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-import wandb
 
 import torch
 from torch.utils.data import DataLoader
@@ -19,32 +18,18 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, CosineAnnealingLR, MultiStepLR
-from apex import amp
+from torch import amp
 
 from utilities.callbacks import History, RedundantCallback, resolve_callbacks, EvaluateEpoch
 from utilities.warmup import GradualWarmupScheduler
 from utilities.utils import boolean_string, save_checkpoint
 from sampler import BPESampler, PositiveSampler
-from dataset import MRIDataset
 from networks import losses
 from networks.models import MRIModels, MultiSequenceChannels
 
 
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-
-def initialize_wandb(parameters):
-    run = wandb.init(
-        project="PROJECT-NAME",
-        entity="ENTITY-NAME",
-        dir=parameters.logdir,
-        name=parameters.experiment,
-        config=parameters
-    )
-    
-    return run
 
 
 def get_scheduler(parameters, optimizer, train_loader):
@@ -106,15 +91,7 @@ def get_scheduler(parameters, optimizer, train_loader):
 
 
 def train(parameters: dict, callbacks: list = None):
-    # Devices & DDP
-    if parameters.ddp:
-        logger.info("Setting up DDP for local rank ", parameters.local_rank)
-        dist.init_process_group(backend='nccl', init_method='env://')
-        device = f'cuda:{parameters.local_rank}'
-        torch.cuda.set_device(device)
-        torch.cuda.manual_seed_all(parameters.seed)
-    else:
-        device = torch.device("cuda")
+    device = torch.device("cuda")
     
     # Reproducibility & benchmarking
     torch.backends.cudnn.benchmark = parameters.cudnn_benchmarking
@@ -124,11 +101,7 @@ def train(parameters: dict, callbacks: list = None):
         torch.cuda.manual_seed(parameters.seed)
     np.random.seed(parameters.seed)
 
-    # Neptune/Wandb logger
-    if parameters.use_neptune and (not parameters.ddp or (parameters.ddp and parameters.local_rank == 0)):
-        neptune_experiment = initialize_wandb(parameters)
-    else:
-        neptune_experiment = None
+    neptune_experiment = None
     
     # Load data for subgroup statistics
     subgroup_df = pd.read_pickle(parameters.subgroup_data)
@@ -138,28 +111,12 @@ def train(parameters: dict, callbacks: list = None):
     train_dataset = MRIDataset(parameters, "training")
     validation_dataset = MRIDataset(parameters, "validation")
 
-    # Sampler
-    if parameters.sampler == 'none':
-        sampler = None
-    elif parameters.sampler =='match_bpe':
-        sampler = BPESampler(train_dataset.data_list)
-    elif parameters.sampler == 'positive':
-        sampler = PositiveSampler(train_dataset.data_list)
-    else:
-        raise ValueError(f"Unknown sampler requested: {parameters.sampler}")
+    sampler = None
 
     # DataLoaders
-    if parameters.ddp:
-        train_sampler = DistributedSampler(train_dataset, shuffle=True)
-        validation_sampler = DistributedSampler(validation_dataset, shuffle=False)
-        train_shuffle = False
-    else:
-        train_sampler = sampler
-        validation_sampler = None
-        if parameters.sampler == 'none':
-            train_shuffle = True
-        else:
-            train_shuffle = False
+    train_sampler = sampler
+    validation_sampler = None
+    train_shuffle = True
     
     train_loader = DataLoader(
         train_dataset,
@@ -570,7 +527,6 @@ def get_args():
     parser.add_argument("--input_type", type=str, default='sub_t1c2', choices={'sub_t1c1', 'sub_t1c2', 't1c1', 't1c2', 't1pre', 'mip_t1c2', 'three_channel', 't2', 'random', 'multi', 'MIL'})
     parser.add_argument("--input_size", type=str, default='normal', choices={'normal', 'small'})
     parser.add_argument("--label_type", type=str, default='cancer', choices={'cancer', 'birads', 'bpe'}, help='What labels should be used, e.g. pretraining on BIRADS and second stage on cancer.')
-    parser.add_argument("--sampler", type=str, default='none', choices={'normal', 'match_bpe', 'positive'})
     parser.add_argument("--subtraction_clipping", type=boolean_string, default=False, help='When performing subtraction, clip lower range values to 0')
     parser.add_argument("--preprocessing_policy", type=str, default='none', choices={'none', 'clahe'})
     parser.add_argument("--age_as_channel", type=boolean_string, default=False, help='Use age as additional channel')
@@ -600,7 +556,6 @@ def get_args():
     parser.add_argument("--inplanes", type=int, default=64)
 
     # Parallel computation
-    parser.add_argument("--ddp", type=boolean_string, default=False, help='Use DistributedDataParallel')
     parser.add_argument("--gpus", type=int, default=1, help='Needs to be specified when using DDP')
     parser.add_argument("--local_rank", type=int, default=-1, metavar='N', help='Local process rank')
 
@@ -636,7 +591,6 @@ def get_args():
     parser.add_argument("--logdir", type=str, default="/DIR/TO/LOGS/", help="Directory where logs are saved")
     parser.add_argument("--experiment", type=str, default="mri_training", help="Name of the experiment that will be used in logging")
     parser.add_argument("--skip_training", type=boolean_string, default=False, help="Validation only")
-    parser.add_argument("--use_neptune", type=boolean_string, default=True)
     parser.add_argument("--log_every_n_steps", type=int, default=30)
     parser.add_argument("--save_checkpoints", type=boolean_string, default=True, help='Set to False if you dont want to save checkpoints')
     parser.add_argument("--save_best_only", type=boolean_string, default=False, help='Save checkpoints after every epoch if True; only after metric improvement if False')
@@ -702,7 +656,7 @@ def set_up_logger(args, log_args=True):
 
 if __name__ == "__main__":
     args = get_args()
-    set_up_logger(args)
+    # set_up_logger(args)
     callbacks = [
         History(
             save_path=args.model_saves_directory,
