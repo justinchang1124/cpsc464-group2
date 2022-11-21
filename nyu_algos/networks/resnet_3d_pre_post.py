@@ -53,7 +53,7 @@ class MRIResNet3D_wls_right(nn.Module):
         else:
             h = x
         h = self.resnet(h)
-        
+
         if self.feature_extractor_only:
             return h
         
@@ -65,7 +65,7 @@ class MRIResNet3D_wls_right(nn.Module):
         
         if not return_logits:  # by default logits->sigmoid, but if True return logits only
             y = torch.sigmoid(y)
-        output = torch.zeros(y.shape[0],4, device=torch.device('cuda'))
+        output = torch.zeros(y.shape[0],4, device=torch.device('cpu')) # default: cuda
         output[:,2] = torch.mean(torch.topk(y[:,0,:,:, :7].contiguous().view(-1), self.topk)[0])
         output[:,3] = torch.mean(torch.topk(y[:,1,:,:, :7].contiguous().view(-1), self.topk)[0])
         output[:,0] = torch.mean(torch.topk(y[:,0,:,:, 7:14].contiguous().view(-1), self.topk)[0])
