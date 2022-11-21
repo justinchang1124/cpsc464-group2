@@ -31,9 +31,11 @@ def create_empty_tensor(shape):
 
 
 examp_model = create_model()
-bat1 = create_empty_tensor((1, 1, 1, 256, 256))
+print("Model architecture: ")
+print(examp_model)
+print("Outcome of applying the untrained model to two 256x256 images:")
 bat2 = create_empty_tensor((2, 1, 1, 256, 256))
-print("Outcome of applying the model to one 256x256 image:")
-print(examp_model(bat1))
-print("Outcome of applying the model to two 256x256 images:")
 print(examp_model(bat2))
+print("Outcome of applying the untrained model to four 128x128 images:")
+bat4 = create_empty_tensor((4, 1, 1, 128, 128))
+print(examp_model(bat4))
