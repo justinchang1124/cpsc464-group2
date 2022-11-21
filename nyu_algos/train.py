@@ -229,113 +229,112 @@ def train(parameters: dict, callbacks: list = None):
             training_labels = {}
 
             # Training phase
-            if parameters.skip_training is False:
-                epoch_loss = []
-                model.train()
+            epoch_loss = []
+            model.train()
 
-                resolve_callbacks('on_train_start', callbacks)
+            resolve_callbacks('on_train_start', callbacks)
 
-                minibatch_number = 0
-                number_of_used_training_examples = 0
+            minibatch_number = 0
+            number_of_used_training_examples = 0
 
-                training_losses = []
-                training_predictions = dict()
+            training_losses = []
+            training_predictions = dict()
 
-                for i_batch, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
-                    resolve_callbacks('on_batch_start', callbacks)
-                    try:
-                        indices, raw_data_batch, label_batch, mixed_label = batch
-                        
-                        for ind_n, ind in enumerate(indices):
-                            training_labels[ind] = list(label_batch[ind_n].numpy())
-                        label_batch = label_batch.to(device)
+            for i_batch, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
+                resolve_callbacks('on_batch_start', callbacks)
+                try:
+                    indices, raw_data_batch, label_batch, mixed_label = batch
 
-                        minibatch_loss = 0
+                    for ind_n, ind in enumerate(indices):
+                        training_labels[ind] = list(label_batch[ind_n].numpy())
+                    label_batch = label_batch.to(device)
 
-                        if len(label_batch) > 0:
-                            number_of_used_training_examples = number_of_used_training_examples + len(label_batch)
-                            subtraction = raw_data_batch  # (b_s, z, x, y)
-                            
-                            for param in model.parameters():
-                                param.grad = None
-                            if parameters.mixup:
-                                mixed_label = mixed_label.to(device)
-                                mixup_loss1 = loss_train(output, mixed_label[:,0,:])
-                                mixup_loss2 = loss_train(output, mixed_label[:,1,:])
-                                minibatch_loss = (0.5 * mixup_loss1) + (0.5 * mixup_loss2)
-                            else:
-                                if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
-                                    if parameters.label_type == 'cancer':
-                                        minibatch_loss = loss_train(output, label_batch.type_as(output))
-                                    else:
-                                        minibatch_loss = loss_train(output, torch.max(label_batch, 1)[1])  # target converted from one-hot to (batch_size, C)
-                                elif parameters.architecture == '3d_gmic':
-                                    is_malignant = label_batch[0][1] or label_batch[0][3]
-                                    is_benign = label_batch[0][0] or label_batch[0][2]
-                                    target = torch.tensor([[is_malignant, is_benign]]).cuda()
-                                    minibatch_loss = loss_train(output, target)
-                                else:
-                                    # THIS IS THE DEFAULT LOSS
-                                    minibatch_loss = loss_train(output, label_batch)
-                                    #print("Loss:", minibatch_loss)
-                                logger.info(f"Minibatch loss: {minibatch_loss}")
-                            epoch_loss.append(float(minibatch_loss))
-                            
-                            # Backprop
-                            if parameters.half:
-                                with amp.scale_loss(minibatch_loss, optimizer) as scaled_loss:
-                                    scaled_loss.backward()
-                            else:
-                                minibatch_loss.backward()
+                    minibatch_loss = 0
 
-                            # Optimizer
-                            optimizer.step()
+                    if len(label_batch) > 0:
+                        number_of_used_training_examples = number_of_used_training_examples + len(label_batch)
+                        subtraction = raw_data_batch  # (b_s, z, x, y)
 
-                            for i in range(0, len(label_batch)):
-                                training_predictions[indices[i]] = output[i].cpu().detach().numpy()
-
-                            minibatch_number += 1
-                            global_step += 1
-                            
-                            # Log learning rate
-                            current_lr = optimizer.param_groups[0]['lr']
-
-                            # Resolve schedulers at step
-                            if type(scheduler) == CosineAnnealingLR:
-                                scheduler.step()
-                            
-                            # Warmup scheduler step update
-                            if type(scheduler) == GradualWarmupScheduler:
-                                if parameters.warmup and epoch_number < parameters.stop_warmup_at_epoch:
-                                    scheduler.step(epoch_number + ((global_step - last_epoch * len(train_loader)) / len(train_loader)))
-                                else:
-                                    if type(scheduler_main) == CosineAnnealingLR:
-                                        scheduler.step()
-                            
+                        for param in model.parameters():
+                            param.grad = None
+                        if parameters.mixup:
+                            mixed_label = mixed_label.to(device)
+                            mixup_loss1 = loss_train(output, mixed_label[:,0,:])
+                            mixup_loss2 = loss_train(output, mixed_label[:,1,:])
+                            minibatch_loss = (0.5 * mixup_loss1) + (0.5 * mixup_loss2)
                         else:
-                            logger.warn('No examples in this training minibatch were correctly loaded.')
-                    except Exception as e:
-                        logger.error('[Error in train loop', traceback.format_exc())
-                        logger.error(e)
-                        continue
-                    
-                    resolve_callbacks('on_batch_end', callbacks)
-                
-                # Resolve schedulers at epoch
-                if type(scheduler) == ReduceLROnPlateau:
-                    scheduler.step(np.mean(epoch_loss))
-                elif type(scheduler) == GradualWarmupScheduler:
-                    if type(scheduler_main) != CosineAnnealingLR:
-                        # Don't step for cosine; cosine is resolved at iter
-                        scheduler.step(epoch=(epoch_number+1), metrics=np.mean(epoch_loss))
-                elif type(scheduler) in [StepLR, MultiStepLR]:
-                    scheduler.step()
+                            if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
+                                if parameters.label_type == 'cancer':
+                                    minibatch_loss = loss_train(output, label_batch.type_as(output))
+                                else:
+                                    minibatch_loss = loss_train(output, torch.max(label_batch, 1)[1])  # target converted from one-hot to (batch_size, C)
+                            elif parameters.architecture == '3d_gmic':
+                                is_malignant = label_batch[0][1] or label_batch[0][3]
+                                is_benign = label_batch[0][0] or label_batch[0][2]
+                                target = torch.tensor([[is_malignant, is_benign]]).cuda()
+                                minibatch_loss = loss_train(output, target)
+                            else:
+                                # THIS IS THE DEFAULT LOSS
+                                minibatch_loss = loss_train(output, label_batch)
+                                #print("Loss:", minibatch_loss)
+                            logger.info(f"Minibatch loss: {minibatch_loss}")
+                        epoch_loss.append(float(minibatch_loss))
 
-                # AUROC 
-                epoch_data['training_losses'] = training_losses
-                epoch_data['training_predictions'] = training_predictions
-                epoch_data['training_labels'] = training_labels
-                resolve_callbacks('on_train_end', callbacks, epoch=epoch_number, logs=epoch_data, neptune_experiment=neptune_experiment)
+                        # Backprop
+                        if parameters.half:
+                            with amp.scale_loss(minibatch_loss, optimizer) as scaled_loss:
+                                scaled_loss.backward()
+                        else:
+                            minibatch_loss.backward()
+
+                        # Optimizer
+                        optimizer.step()
+
+                        for i in range(0, len(label_batch)):
+                            training_predictions[indices[i]] = output[i].cpu().detach().numpy()
+
+                        minibatch_number += 1
+                        global_step += 1
+
+                        # Log learning rate
+                        current_lr = optimizer.param_groups[0]['lr']
+
+                        # Resolve schedulers at step
+                        if type(scheduler) == CosineAnnealingLR:
+                            scheduler.step()
+
+                        # Warmup scheduler step update
+                        if type(scheduler) == GradualWarmupScheduler:
+                            if parameters.warmup and epoch_number < parameters.stop_warmup_at_epoch:
+                                scheduler.step(epoch_number + ((global_step - last_epoch * len(train_loader)) / len(train_loader)))
+                            else:
+                                if type(scheduler_main) == CosineAnnealingLR:
+                                    scheduler.step()
+
+                    else:
+                        logger.warn('No examples in this training minibatch were correctly loaded.')
+                except Exception as e:
+                    logger.error('[Error in train loop', traceback.format_exc())
+                    logger.error(e)
+                    continue
+
+                resolve_callbacks('on_batch_end', callbacks)
+
+            # Resolve schedulers at epoch
+            if type(scheduler) == ReduceLROnPlateau:
+                scheduler.step(np.mean(epoch_loss))
+            elif type(scheduler) == GradualWarmupScheduler:
+                if type(scheduler_main) != CosineAnnealingLR:
+                    # Don't step for cosine; cosine is resolved at iter
+                    scheduler.step(epoch=(epoch_number+1), metrics=np.mean(epoch_loss))
+            elif type(scheduler) in [StepLR, MultiStepLR]:
+                scheduler.step()
+
+            # AUROC
+            epoch_data['training_losses'] = training_losses
+            epoch_data['training_predictions'] = training_predictions
+            epoch_data['training_labels'] = training_labels
+            resolve_callbacks('on_train_end', callbacks, epoch=epoch_number, logs=epoch_data, neptune_experiment=neptune_experiment)
 
             torch.cuda.empty_cache()
             
@@ -517,7 +516,6 @@ def get_args():
     # Logging & debugging
     parser.add_argument("--logdir", type=str, default="/DIR/TO/LOGS/", help="Directory where logs are saved")
     parser.add_argument("--experiment", type=str, default="mri_training", help="Name of the experiment that will be used in logging")
-    parser.add_argument("--skip_training", type=boolean_string, default=False, help="Validation only")
     parser.add_argument("--log_every_n_steps", type=int, default=30)
     parser.add_argument("--save_checkpoints", type=boolean_string, default=True, help='Set to False if you dont want to save checkpoints')
     parser.add_argument("--save_best_only", type=boolean_string, default=False, help='Save checkpoints after every epoch if True; only after metric improvement if False')
