@@ -2,12 +2,19 @@
 # Project was developed in pycharm community
 
 conda info --envs
-# conda remove --name cpsc464-group2
+# conda env remove --name cpsc464-group2
 # you can always make the env again from settings -> python interpreter -> gear -> add
 # note: if installation is super slow, try restarting pycharm
+
+# the hefty machine learning libraries
 conda install keras
 conda install tensorflow
-conda install matplotlib.pylab
+conda install torchvision -c pytorch
+conda install tqdm
+
+# other
+conda install pandas
+conda install -c conda-forge matplotlib
 conda install opencv
 conda install scikit-learn
 pip install pydicom
