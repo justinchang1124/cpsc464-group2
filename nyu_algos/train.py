@@ -7,27 +7,46 @@ import random
 import logging
 import pprint
 
-import sys
-sys.path.append('C:/Users/justin/PycharmProjects/cpsc464-group2/nyu_algos')
-
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 from tqdm import tqdm
+import wandb
 
 import torch
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+import torch.distributed as dist
 import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, CosineAnnealingLR, MultiStepLR
-from torch import amp
+from apex import amp
 
 from utilities.callbacks import History, RedundantCallback, resolve_callbacks, EvaluateEpoch
 from utilities.warmup import GradualWarmupScheduler
 from utilities.utils import boolean_string, save_checkpoint
+from sampler import BPESampler, PositiveSampler
+from dataset import MRIDataset
 from networks import losses
 from networks.models import MRIModels, MultiSequenceChannels
 
 
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+def initialize_wandb(parameters):
+    run = wandb.init(
+        project="PROJECT-NAME",
+        entity="ENTITY-NAME",
+        dir=parameters.logdir,
+        name=parameters.experiment,
+        config=parameters
+    )
+    
+    return run
 
 
 def get_scheduler(parameters, optimizer, train_loader):
@@ -89,7 +108,15 @@ def get_scheduler(parameters, optimizer, train_loader):
 
 
 def train(parameters: dict, callbacks: list = None):
-    device = torch.device("cuda")
+    # Devices & DDP
+    if parameters.ddp:
+        logger.info("Setting up DDP for local rank ", parameters.local_rank)
+        dist.init_process_group(backend='nccl', init_method='env://')
+        device = f'cuda:{parameters.local_rank}'
+        torch.cuda.set_device(device)
+        torch.cuda.manual_seed_all(parameters.seed)
+    else:
+        device = torch.device("cuda")
     
     # Reproducibility & benchmarking
     torch.backends.cudnn.benchmark = parameters.cudnn_benchmarking
@@ -99,18 +126,42 @@ def train(parameters: dict, callbacks: list = None):
         torch.cuda.manual_seed(parameters.seed)
     np.random.seed(parameters.seed)
 
-    neptune_experiment = None
+    # Neptune/Wandb logger
+    if parameters.use_neptune and (not parameters.ddp or (parameters.ddp and parameters.local_rank == 0)):
+        neptune_experiment = initialize_wandb(parameters)
+    else:
+        neptune_experiment = None
     
     # Load data for subgroup statistics
+    subgroup_df = pd.read_pickle(parameters.subgroup_data)
+    parameters.subgroup_df = subgroup_df
     
     # Prepare datasets
-    train_dataset = np.empty((100, 100, 100))
-    validation_dataset = np.empty((100, 100, 100))
+    train_dataset = MRIDataset(parameters, "training")
+    validation_dataset = MRIDataset(parameters, "validation")
+
+    # Sampler
+    if parameters.sampler == 'none':
+        sampler = None
+    elif parameters.sampler =='match_bpe':
+        sampler = BPESampler(train_dataset.data_list)
+    elif parameters.sampler == 'positive':
+        sampler = PositiveSampler(train_dataset.data_list)
+    else:
+        raise ValueError(f"Unknown sampler requested: {parameters.sampler}")
 
     # DataLoaders
-    train_sampler = None
-    validation_sampler = None
-    train_shuffle = True
+    if parameters.ddp:
+        train_sampler = DistributedSampler(train_dataset, shuffle=True)
+        validation_sampler = DistributedSampler(validation_dataset, shuffle=False)
+        train_shuffle = False
+    else:
+        train_sampler = sampler
+        validation_sampler = None
+        if parameters.sampler == 'none':
+            train_shuffle = True
+        else:
+            train_shuffle = False
     
     train_loader = DataLoader(
         train_dataset,
@@ -131,6 +182,9 @@ def train(parameters: dict, callbacks: list = None):
         drop_last=True
     )
     validation_labels = validation_dataset.get_labels()
+
+    if parameters.lms:
+        torch.cuda.set_enabled_lms(parameters.lms)  # large model support
 
     if parameters.architecture == 'multi_channel':
         if parameters.age_as_channel:
@@ -203,6 +257,14 @@ def train(parameters: dict, callbacks: list = None):
         optimizer.load_state_dict(weights['optimizer'])
         #amp.load_state_dict(weights['amp'])
     
+    if parameters.ddp:
+        model = DDP(
+            model,
+            device_ids=[parameters.local_rank],
+            output_device=parameters.local_rank,
+            find_unused_parameters=True,  # ?
+        )
+    
     # Training/validation loop
     global_step = 0
     global_step_val = 0
@@ -215,122 +277,163 @@ def train(parameters: dict, callbacks: list = None):
             last_epoch = global_step // len(train_loader)
 
             logger.info(f'Starting *training* epoch number {epoch_number}')
+            
+            if parameters.use_neptune and (not parameters.ddp or (parameters.ddp and parameters.local_rank == 0)):
+                wandb.log({"epoch_number": epoch_number})
 
-            epoch_data = {
-                "epoch_number": epoch_number
-            }
+            if parameters.ddp and parameters.local_rank != 0:
+                # On slave processes don't store all details
+                epoch_data = {
+                    "epoch_number": epoch_number
+                }
+            else:
+                epoch_data = {
+                    "epoch_number": epoch_number,
+                    "subgroup_df": subgroup_df
+                }
             
             training_labels = {}
 
             # Training phase
-            epoch_loss = []
-            model.train()
+            if parameters.skip_training is False:
+                epoch_loss = []
+                model.train()
 
-            resolve_callbacks('on_train_start', callbacks)
+                if parameters.ddp:
+                    dist.barrier()  # sync up processes before new epoch
+                    torch.cuda.empty_cache()
+                resolve_callbacks('on_train_start', callbacks)
 
-            minibatch_number = 0
-            number_of_used_training_examples = 0
+                minibatch_number = 0
+                number_of_used_training_examples = 0
 
-            training_losses = []
-            training_predictions = dict()
+                training_losses = []
+                training_predictions = dict()
 
-            for i_batch, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
-                resolve_callbacks('on_batch_start', callbacks)
-                try:
-                    indices, raw_data_batch, label_batch, mixed_label = batch
+                for i_batch, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
+                    resolve_callbacks('on_batch_start', callbacks)
+                    try:
+                        indices, raw_data_batch, label_batch, mixed_label = batch
+                        
+                        for ind_n, ind in enumerate(indices):
+                            training_labels[ind] = list(label_batch[ind_n].numpy())
+                        label_batch = label_batch.to(device)
 
-                    for ind_n, ind in enumerate(indices):
-                        training_labels[ind] = list(label_batch[ind_n].numpy())
-                    label_batch = label_batch.to(device)
+                        minibatch_loss = 0
 
-                    minibatch_loss = 0
-
-                    if len(label_batch) > 0:
-                        number_of_used_training_examples = number_of_used_training_examples + len(label_batch)
-                        subtraction = raw_data_batch  # (b_s, z, x, y)
-
-                        for param in model.parameters():
-                            param.grad = None
-                        if parameters.mixup:
-                            mixed_label = mixed_label.to(device)
-                            mixup_loss1 = loss_train(output, mixed_label[:,0,:])
-                            mixup_loss2 = loss_train(output, mixed_label[:,1,:])
-                            minibatch_loss = (0.5 * mixup_loss1) + (0.5 * mixup_loss2)
-                        else:
-                            if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
-                                if parameters.label_type == 'cancer':
-                                    minibatch_loss = loss_train(output, label_batch.type_as(output))
+                        if(len(label_batch) > 0):
+                            number_of_used_training_examples = number_of_used_training_examples + len(label_batch)
+                            subtraction = raw_data_batch  # (b_s, z, x, y)
+                            
+                            for param in model.parameters():
+                                param.grad = None
+                            if parameters.mixup:
+                                mixed_label = mixed_label.to(device)
+                                mixup_loss1 = loss_train(output, mixed_label[:,0,:])
+                                mixup_loss2 = loss_train(output, mixed_label[:,1,:])
+                                minibatch_loss = (0.5 * mixup_loss1) + (0.5 * mixup_loss2)
+                            else:
+                                if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
+                                    if parameters.label_type == 'cancer':
+                                        minibatch_loss = loss_train(output, label_batch.type_as(output))
+                                    else:
+                                        minibatch_loss = loss_train(output, torch.max(label_batch, 1)[1])  # target converted from one-hot to (batch_size, C)
+                                elif parameters.architecture == '3d_gmic':
+                                    is_malignant = label_batch[0][1] or label_batch[0][3]
+                                    is_benign = label_batch[0][0] or label_batch[0][2]
+                                    target = torch.tensor([[is_malignant, is_benign]]).cuda()
+                                    minibatch_loss = loss_train(output, target)
                                 else:
-                                    minibatch_loss = loss_train(output, torch.max(label_batch, 1)[1])  # target converted from one-hot to (batch_size, C)
-                            elif parameters.architecture == '3d_gmic':
-                                is_malignant = label_batch[0][1] or label_batch[0][3]
-                                is_benign = label_batch[0][0] or label_batch[0][2]
-                                target = torch.tensor([[is_malignant, is_benign]]).cuda()
-                                minibatch_loss = loss_train(output, target)
-                            else:
-                                # THIS IS THE DEFAULT LOSS
-                                minibatch_loss = loss_train(output, label_batch)
-                                #print("Loss:", minibatch_loss)
-                            logger.info(f"Minibatch loss: {minibatch_loss}")
-                        epoch_loss.append(float(minibatch_loss))
+                                    # THIS IS THE DEFAULT LOSS
+                                    minibatch_loss = loss_train(output, label_batch)
+                                    #print("Loss:", minibatch_loss)
+                                logger.info(f"Minibatch loss: {minibatch_loss}")
+                            epoch_loss.append(float(minibatch_loss))
 
-                        # Backprop
-                        if parameters.half:
-                            with amp.scale_loss(minibatch_loss, optimizer) as scaled_loss:
-                                scaled_loss.backward()
+                            if parameters.use_neptune:
+                                if parameters.ddp:
+                                    pass
+                                else:
+                                    if global_step % parameters.log_every_n_steps == 0:
+                                        wandb.log({"train/nll": minibatch_loss, "global_step": global_step})
+                            
+                            # Epoch-level average loss
+                            if not parameters.ddp:
+                                training_losses.append(minibatch_loss.item())
+                            
+                            # Backprop
+                            if parameters.half:
+                                with amp.scale_loss(minibatch_loss, optimizer) as scaled_loss:
+                                    scaled_loss.backward()
+                            else:
+                                minibatch_loss.backward()
+
+                            # Optimizer
+                            optimizer.step()
+
+                            for i in range(0, len(label_batch)):
+                                training_predictions[indices[i]] = output[i].cpu().detach().numpy()
+
+                            minibatch_number += 1
+                            global_step += 1
+                            
+                            # Log learning rate
+                            current_lr = optimizer.param_groups[0]['lr']
+                            if not parameters.ddp or (parameters.ddp and parameters.local_rank == 0):
+                                if parameters.use_neptune:
+                                    if global_step % parameters.log_every_n_steps == 0:
+                                        wandb.log({"learning_rate": current_lr, "global_step": global_step})
+
+                            # Resolve schedulers at step
+                            if type(scheduler) == CosineAnnealingLR:
+                                scheduler.step()
+                            
+                            # Warmup scheduler step update
+                            if type(scheduler) == GradualWarmupScheduler:
+                                if parameters.warmup and epoch_number < parameters.stop_warmup_at_epoch:
+                                    scheduler.step(epoch_number + ((global_step - last_epoch * len(train_loader)) / len(train_loader)))
+                                else:
+                                    if type(scheduler_main) == CosineAnnealingLR:
+                                        scheduler.step()
+                            
                         else:
-                            minibatch_loss.backward()
+                            logger.warn('No examples in this training minibatch were correctly loaded.')
+                    except Exception as e:
+                        logger.error('[Error in train loop', traceback.format_exc())
+                        logger.error(e)
+                        continue
+                    
+                    resolve_callbacks('on_batch_end', callbacks)
+                
+                # Resolve schedulers at epoch
+                if type(scheduler) == ReduceLROnPlateau:
+                    scheduler.step(np.mean(epoch_loss))
+                elif type(scheduler) == GradualWarmupScheduler:
+                    if type(scheduler_main) != CosineAnnealingLR:
+                        # Don't step for cosine; cosine is resolved at iter
+                        scheduler.step(epoch=(epoch_number+1), metrics=np.mean(epoch_loss))
+                elif type(scheduler) in [StepLR, MultiStepLR]:
+                    scheduler.step()
 
-                        # Optimizer
-                        optimizer.step()
+                # AUROC 
+                epoch_data['training_losses'] = training_losses
+                epoch_data['training_predictions'] = training_predictions
+                epoch_data['training_labels'] = training_labels
 
-                        for i in range(0, len(label_batch)):
-                            training_predictions[indices[i]] = output[i].cpu().detach().numpy()
+                # Epoch average training loss
+                if parameters.use_neptune and not parameters.ddp:
+                    epoch_train_loss = sum(training_losses) / len(training_losses)
+                    wandb.log({"train/nll_averaged": epoch_train_loss})
+                    training_losses = []
 
-                        minibatch_number += 1
-                        global_step += 1
-
-                        # Log learning rate
-                        current_lr = optimizer.param_groups[0]['lr']
-
-                        # Resolve schedulers at step
-                        if type(scheduler) == CosineAnnealingLR:
-                            scheduler.step()
-
-                        # Warmup scheduler step update
-                        if type(scheduler) == GradualWarmupScheduler:
-                            if parameters.warmup and epoch_number < parameters.stop_warmup_at_epoch:
-                                scheduler.step(epoch_number + ((global_step - last_epoch * len(train_loader)) / len(train_loader)))
-                            else:
-                                if type(scheduler_main) == CosineAnnealingLR:
-                                    scheduler.step()
-
-                    else:
-                        logger.warn('No examples in this training minibatch were correctly loaded.')
-                except Exception as e:
-                    logger.error('[Error in train loop', traceback.format_exc())
-                    logger.error(e)
-                    continue
-
-                resolve_callbacks('on_batch_end', callbacks)
-
-            # Resolve schedulers at epoch
-            if type(scheduler) == ReduceLROnPlateau:
-                scheduler.step(np.mean(epoch_loss))
-            elif type(scheduler) == GradualWarmupScheduler:
-                if type(scheduler_main) != CosineAnnealingLR:
-                    # Don't step for cosine; cosine is resolved at iter
-                    scheduler.step(epoch=(epoch_number+1), metrics=np.mean(epoch_loss))
-            elif type(scheduler) in [StepLR, MultiStepLR]:
-                scheduler.step()
-
-            # AUROC
-            epoch_data['training_losses'] = training_losses
-            epoch_data['training_predictions'] = training_predictions
-            epoch_data['training_labels'] = training_labels
-            resolve_callbacks('on_train_end', callbacks, epoch=epoch_number, logs=epoch_data, neptune_experiment=neptune_experiment)
-
+                if parameters.ddp:
+                    dist.barrier()  # make sure all writes are done before we calculate statistics after an epoch
+                resolve_callbacks('on_train_end', callbacks, epoch=epoch_number, logs=epoch_data, neptune_experiment=neptune_experiment)
             torch.cuda.empty_cache()
+
+            # Validation
+            if parameters.ddp:
+                dist.barrier()  # make sure all writes are done before we calculate statistics after an epoch
             
             resolve_callbacks('on_val_start', callbacks)
             model.eval()
@@ -364,7 +467,8 @@ def train(parameters: dict, callbacks: list = None):
                                 modality_loss = loss_eval(output, label_batch)
                                 modality_losses.append(modality_loss.item())
                             minibatch_loss = sum(modality_losses) / len(modality_losses)
-                            validation_losses.append(minibatch_loss)
+                            if not parameters.ddp:
+                                validation_losses.append(minibatch_loss)
                         else:
                             if parameters.architecture == '3d_gmic':
                                 output, _ = model(subtraction.to(device))
@@ -385,25 +489,36 @@ def train(parameters: dict, callbacks: list = None):
                             else:
                                 # DEFAULT LOSS IN VAL
                                 minibatch_loss = loss_eval(output, label_batch)                        
-                            validation_losses.append(minibatch_loss.item())
+                            if not parameters.ddp:
+                                validation_losses.append(minibatch_loss.item())
                         logger.info(f"Minibatch loss: {minibatch_loss}")
+                        
+                        if parameters.use_neptune:
+                            if not parameters.ddp:
+                                if global_step_val % parameters.log_every_n_steps == 0:
+                                    wandb.log({"val/nll": minibatch_loss, "global_step_val": global_step_val})
 
                         for i in range(0, len(label_batch)):
                             validation_predictions[indices[i]] = output[i].cpu().numpy()
 
                     minibatch_number = minibatch_number + 1
 
+                if parameters.use_neptune and not parameters.ddp:
+                    epoch_val_loss = sum(validation_losses) / len(validation_losses)
+                    wandb.log({"val/nll_averaged": epoch_val_loss})
                 epoch_data['validation_losses'] = validation_losses
                 epoch_data['validation_predictions'] = validation_predictions
                 epoch_data['validation_labels'] = validation_labels
                 validation_losses = []
 
                 torch.cuda.empty_cache()
-
+            
+            if parameters.ddp:
+                dist.barrier()  # make sure all writes are done before we calculate statistics after an epoch
             val_res = resolve_callbacks('on_val_end', callbacks, epoch=epoch_number, logs=epoch_data, neptune_experiment=neptune_experiment)
             
             # Checkpointing
-            if not parameters.save_checkpoints:
+            if (parameters.ddp and parameters.local_rank != 0) or not parameters.save_checkpoints:
                 # Do not save checkpoints if distributed slave process or user specifies an arg
                 pass
             else:
@@ -425,10 +540,20 @@ def train(parameters: dict, callbacks: list = None):
                 else:
                     model_file_name = os.path.join(parameters.model_saves_directory, f"model-epoch{epoch_number}")
                     save_checkpoint(model, model_file_name, optimizer, step=global_step, is_amp=parameters.half, epoch=epoch_number)
-
+            
+            if parameters.ddp:
+                dist.barrier()
             resolve_callbacks('on_epoch_end', callbacks, epoch=epoch_number, logs=epoch_data)
     except KeyboardInterrupt:
-        pass
+        if parameters.use_neptune:
+            wandb.finish()
+        if parameters.ddp:
+            torch.distributed.destroy_process_group()
+    
+    if parameters.use_neptune:
+        wandb.finish()
+    if parameters.ddp:
+        torch.distributed.destroy_process_group()
 
     return
 
@@ -447,6 +572,7 @@ def get_args():
     parser.add_argument("--input_type", type=str, default='sub_t1c2', choices={'sub_t1c1', 'sub_t1c2', 't1c1', 't1c2', 't1pre', 'mip_t1c2', 'three_channel', 't2', 'random', 'multi', 'MIL'})
     parser.add_argument("--input_size", type=str, default='normal', choices={'normal', 'small'})
     parser.add_argument("--label_type", type=str, default='cancer', choices={'cancer', 'birads', 'bpe'}, help='What labels should be used, e.g. pretraining on BIRADS and second stage on cancer.')
+    parser.add_argument("--sampler", type=str, default='none', choices={'normal', 'match_bpe', 'positive'})
     parser.add_argument("--subtraction_clipping", type=boolean_string, default=False, help='When performing subtraction, clip lower range values to 0')
     parser.add_argument("--preprocessing_policy", type=str, default='none', choices={'none', 'clahe'})
     parser.add_argument("--age_as_channel", type=boolean_string, default=False, help='Use age as additional channel')
@@ -476,6 +602,7 @@ def get_args():
     parser.add_argument("--inplanes", type=int, default=64)
 
     # Parallel computation
+    parser.add_argument("--ddp", type=boolean_string, default=False, help='Use DistributedDataParallel')
     parser.add_argument("--gpus", type=int, default=1, help='Needs to be specified when using DDP')
     parser.add_argument("--local_rank", type=int, default=-1, metavar='N', help='Local process rank')
 
@@ -501,6 +628,7 @@ def get_args():
     parser.add_argument("--cudnn_deterministic", type=boolean_string, default=False)
     parser.add_argument("--half", type=boolean_string, default=True, help="Use half precision (fp16)")
     parser.add_argument("--half_level", type=str, default='O2', choices={'O1', 'O2'})
+    parser.add_argument("--lms", type=boolean_string, default=False, help='Use Large Model Support')
     parser.add_argument("--training_fraction", type=float, default=1.00)
     parser.add_argument("--number_of_training_samples", type=int, default=None, help='If this value is not None, it will overrule `training_fraction` parameter')
     parser.add_argument("--validation_fraction", type=float, default=1.00)
@@ -509,13 +637,22 @@ def get_args():
     # Logging & debugging
     parser.add_argument("--logdir", type=str, default="/DIR/TO/LOGS/", help="Directory where logs are saved")
     parser.add_argument("--experiment", type=str, default="mri_training", help="Name of the experiment that will be used in logging")
+    parser.add_argument("--skip_training", type=boolean_string, default=False, help="Validation only")
+    parser.add_argument("--use_neptune", type=boolean_string, default=True)
     parser.add_argument("--log_every_n_steps", type=int, default=30)
     parser.add_argument("--save_checkpoints", type=boolean_string, default=True, help='Set to False if you dont want to save checkpoints')
     parser.add_argument("--save_best_only", type=boolean_string, default=False, help='Save checkpoints after every epoch if True; only after metric improvement if False')
     parser.add_argument("--seed", type=int, default=420)
     
     args = parser.parse_args()
-    args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if args.ddp:
+        if not torch.distributed.is_available():
+            raise ValueError("Pytorch distributed package is not available")
+        args.is_master = args.local_rank == 0
+        args.device = torch.cuda.device(args.local_rank)
+    else:
+        args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Training fractions
     assert (0 < args.training_fraction <= 1.00), "training_fraction not in (0,1] range."
@@ -529,15 +666,19 @@ def get_args():
     os.makedirs(args.model_saves_directory, exist_ok=True)
 
     # Save all arguments to the separate file
-    parameters_path = os.path.join(args.model_saves_directory, "parameters.pkl")
-    with open(parameters_path, "wb") as f:
-        pickle.dump(vars(args), f)
+    if not args.ddp or (args.ddp and args.local_rank == 0):
+        parameters_path = os.path.join(args.model_saves_directory, "parameters.pkl")
+        with open(parameters_path, "wb") as f:
+            pickle.dump(vars(args), f)
 
     return args
 
 
 def set_up_logger(args, log_args=True):
-    log_file_name = 'output_log.log'
+    if args.ddp:
+        log_file_name = f'output_log_{args.local_rank}.log'
+    else:
+        log_file_name = 'output_log.log'
     log_file_path = os.path.join(args.model_saves_directory, log_file_name)
     
     formatter = logging.Formatter('%(asctime)s:%(name)s:%(message)s')
@@ -563,17 +704,17 @@ def set_up_logger(args, log_args=True):
 
 if __name__ == "__main__":
     args = get_args()
-    # set_up_logger(args)
+    set_up_logger(args)
     callbacks = [
         History(
             save_path=args.model_saves_directory,
-            distributed=False,
+            distributed=args.ddp,
             local_rank=args.local_rank
         ),
         RedundantCallback(),
         EvaluateEpoch(
             save_path=args.model_saves_directory,
-            distributed=False,
+            distributed=args.ddp,
             local_rank=args.local_rank,
             world_size=args.gpus,
             label_type=args.label_type
