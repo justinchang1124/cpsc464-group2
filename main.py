@@ -1,3 +1,4 @@
+import random
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Conv2D, MaxPool2D, Flatten
 from keras.utils import np_utils, Sequence
@@ -31,14 +32,15 @@ for i in range(n_dcm_files):
     dcm_study_dict[key] = input_list
 
 median_indices = []
-num_per_study = 20
 for key in dcm_study_dict:
     input_list = dcm_study_dict[key]
-    med_index = len(input_list) // 2
+    # med_index = len(input_list) // 2
+    # num_per_study = 40
     # get the median 50 elements
-    i1 = int(med_index - num_per_study // 2)
-    i2 = int(med_index + num_per_study // 2)
-    median_indices += input_list[i1:i2]
+    i1 = 0  # int(med_index - num_per_study // 2)
+    i2 = len(input_list)  # int(med_index + num_per_study // 2)
+    sep_len = 8
+    median_indices += input_list[i1:i2:sep_len]  # space out b/c we don't want too-similar images
 
 # truncate
 tn_dcm_files = len(median_indices)
@@ -64,9 +66,9 @@ for i in range(tn_dcm_files):
 # partition into train / test / split
 unique_ids = list(set(global_ids))
 train_ids, test_ids = model_selection.train_test_split(
-    unique_ids, test_size=0.2, random_state=464)
+    unique_ids, test_size=0.2) # random_state?
 train_ids, valid_ids = model_selection.train_test_split(
-    train_ids, test_size=0.25, random_state=464)
+    train_ids, test_size=0.25)
 
 X_train_files = []
 X_valid_files = []
@@ -100,10 +102,11 @@ for i in range(tn_dcm_files):
 # loading the dataset
 class storage_data_generator(Sequence):
 
-    def __init__(self, t_abs_dcm_files, t_labels, t_shape, batch_size):
-        self.abs_dcm_files = t_abs_dcm_files
-        self.labels = t_labels
-        self.shape = t_shape
+    def __init__(self, t_abs_dcm_files, t_labels, batch_size):
+        # randomize to avoid generating adjacent ones in the correct order
+        files_labels = list(zip(t_abs_dcm_files, t_labels))
+        random.shuffle(files_labels)
+        self.abs_dcm_files, self.labels = zip(*files_labels)
         self.batch_size = batch_size
 
     def __len__(self):
@@ -117,8 +120,8 @@ class storage_data_generator(Sequence):
 
         x_files = self.abs_dcm_files[i1:i2]
         x_images = dcm_utils.open_dcm_images(x_files)
-        x_array = dcm_utils.dcm_images_to_np3d(x_images, self.shape)
-        batch_x = dcm_utils.unit_dcm_image(x_array)
+        x_array = dcm_utils.dcm_images_to_np3d(x_images)
+        batch_x = x_array  # dcm_utils.unit_dcm_image(x_array)
 
         y_labels = self.labels[i1:i2]
         batch_y = np.array(y_labels)
@@ -133,44 +136,48 @@ Y_test = np_utils.to_categorical(y_test, n_classes)
 print("Shape after one-hot encoding: ", Y_train.shape)
 
 
-i_shape = (128, 128)
-i_shape3 = (128, 128, 1)
-X_train_gen = storage_data_generator(X_train_files, Y_train, i_shape, 32)
-X_valid_gen = storage_data_generator(X_valid_files, Y_valid, i_shape, 32)
-X_test_gen = storage_data_generator(X_test_files, Y_test, i_shape, 32)
+glob_batch_size = 8
+X_train_gen = storage_data_generator(X_train_files, Y_train, glob_batch_size)
+X_valid_gen = storage_data_generator(X_valid_files, Y_valid, glob_batch_size)
+X_test_gen = storage_data_generator(X_test_files, Y_test, glob_batch_size)
 
+
+i_shape = (128, 128)
+i_shape3 = (*i_shape, 1)
 
 # building a linear stack of layers with the sequential model
 model = Sequential()
 
-# convolutional layer
-model.add(Conv2D(50, kernel_size=(3,3), strides=(1,1), padding='same', activation='relu',
-                 input_shape=i_shape3))
+# convolutional layer (originally 50, 75, 125, 0.25 dropout for both)
+model.add(Conv2D(32, kernel_size=(3,3), strides=(1,1), padding='same', activation='relu',
+                 input_shape=i_shape3,
+                 kernel_regularizer=keras.regularizers.l2(l=0.01)))
 
 # convolutional layer
-model.add(Conv2D(75, kernel_size=(3,3), strides=(1,1), padding='same', activation='relu',
+model.add(Conv2D(64, kernel_size=(3,3), strides=(1,1), padding='same', activation='relu',
                  kernel_regularizer=keras.regularizers.l2(l=0.01)))
 model.add(MaxPool2D(pool_size=(2,2)))
-model.add(Dropout(0.25))
+model.add(Dropout(0.1))
 
-model.add(Conv2D(125, kernel_size=(3,3), strides=(1,1), padding='same', activation='relu',
+model.add(Conv2D(96, kernel_size=(3,3), strides=(1,1), padding='same', activation='relu',
                  kernel_regularizer=keras.regularizers.l2(l=0.01)))
 model.add(MaxPool2D(pool_size=(2,2)))
-model.add(Dropout(0.25))
+model.add(Dropout(0.1))
 
 # flatten output of conv
 model.add(Flatten())
 
 # hidden layer
-model.add(Dense(500, activation='relu'))
-model.add(Dropout(0.4))
-model.add(Dense(250, activation='relu'))
-model.add(Dropout(0.3))
+model.add(Dense(125, activation='relu')) # originally 500, 250; 0.4, 0.3
+model.add(Dropout(0.5))
+model.add(Dense(125, activation='relu'))
+model.add(Dropout(0.5))
 # output layer
 model.add(Dense(n_classes, activation='softmax'))
 
 # compiling the sequential model
 model.compile(loss='categorical_crossentropy', metrics=['accuracy'], optimizer='adam')
+print(model.summary())
 
 # training the model for 10 epochs
 model.fit_generator(
@@ -179,30 +186,58 @@ model.fit_generator(
     steps_per_epoch=len(X_train_gen),
     epochs=10)
 
-prediction = model.predict(X_valid)
+# note: regularization seems to have a large benefit!
+prediction = model.predict_generator(generator=X_test_gen)
 scale_pred = []
 
 for pred in prediction:
-    if pred[0] > pred[1]:
-        scale_pred.append(1)
-    else:
-        scale_pred.append(2)
+    scale_pred.append(np.argmax(pred))
+
+n_pred = len(scale_pred)
 
 # group, predicted, actual
-black_correct = 0
-black_total = 0
-white_correct = 0
-white_total = 0
+correct_dict = {}
+val_dict = {}
+v2_dict = {}
+total_dict = {}
 
-for i in range(500):
-    if z_valid[i] == 'black':
-        black_total += 1
-        if scale_pred[i] == y_valid[i]:
-            black_correct += 1
-    else:
-        white_total += 1
-        if scale_pred[i] == y_valid[i]:
-            white_correct += 1
+for i in range(n_pred):
+    key = z_test[i]
+    c_list = correct_dict.get(key)
+    if c_list is None:
+        c_list = 0
+    t_list = total_dict.get(key)
+    if t_list is None:
+        t_list = 0
+    v_list = val_dict.get(key)
+    if v_list is None:
+        v_list = 0
+    v2_list = v2_dict.get(key)
+    if v2_list is None:
+        v2_list = 0
+    if scale_pred[i] == y_test[i]:
+        c_list += 1
+    v_list += y_test[i]
+    v2_list += scale_pred[i]
+    t_list += 1
+    correct_dict[key] = c_list
+    total_dict[key] = t_list
+    val_dict[key] = v_list
+    v2_dict[key] = v2_list
 
-black_correct / black_total
-white_correct / white_total
+for key in correct_dict:
+    a = correct_dict[key]
+    b = total_dict[key]
+    print("{} accuracy rate: {}/{} = {}".format(key, a, b, a/b))
+    print("{} average real vs AI: {} vs {}".format(key, v2_dict[key]/b, val_dict[key]/b))
+
+
+overall_dict = {}
+
+for group in groups:
+    hmm = overall_dict.get(group)
+    if hmm is None:
+        hmm = 0
+    overall_dict[group] = hmm + 1
+
+overall_dict / len(groups)

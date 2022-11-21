@@ -14,7 +14,7 @@ import numpy as np
 from tqdm import tqdm
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, CosineAnnealingLR, MultiStepLR
 from torch import amp
@@ -24,6 +24,160 @@ from utilities.warmup import GradualWarmupScheduler
 from utilities.utils import boolean_string, save_checkpoint
 from networks import losses
 from networks.models import MRIModels, MultiSequenceChannels
+
+
+class ParamTest:
+    pass
+
+def create_tensor(np_array):
+    return torch.from_numpy(np_array).float()
+
+def create_empty_tensor(shape):
+    return create_tensor(np.empty(shape))
+
+def create_model():
+    s_params = ParamTest()
+    s_params.weights = False
+    s_params.architecture = '3d_resnet18_fc'
+    s_params.resnet_groups = 16 # default: 16
+    s_params.input_type = 'birads'  # 5 classes (0, 1, 2, 3, 4)
+    s_params.topk = 10 # default: 10
+    s_params.network_modification = None
+    return MRIModels(s_params, in_channels=1, num_classes=5, force_bottleneck=False, inplanes=64).model
+
+# model = create_model()
+#
+
+# x = create_tensor((1, 1, 1, 256, 256))
+# hmm = model(x)
+
+loss = nn.CrossEntropyLoss()
+predict = torch.tensor([[100, 100, 100, 100, 1000]]).float()
+target = torch.tensor([[0, 0, 0, 0, 1]]).float()
+x = loss(predict, target)
+
+from sklearn import model_selection
+
+# project code
+import dcm_utils
+import read_metadata
+
+abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
+data_path = 'image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
+abs_data_path = os.path.join(abs_proj_path, data_path)
+dcm_files = dcm_utils.dcm_dir_list(abs_data_path)
+n_dcm_files = len(dcm_files)
+
+dcm_files_data = []
+for file in dcm_files:
+    dcm_files_data.append(file.split('\\'))
+
+dcm_study_dict = {}
+for i in range(n_dcm_files):
+    key = os.path.join(*dcm_files_data[i][:-1])
+    input_list = dcm_study_dict.get(key)
+    if input_list is None:
+        input_list = []
+    input_list.append(i)
+    dcm_study_dict[key] = input_list
+
+median_indices = []
+for key in dcm_study_dict:
+    input_list = dcm_study_dict[key]
+    # med_index = len(input_list) // 2
+    # num_per_study = 40
+    # get the median 50 elements
+    i1 = 0  # int(med_index - num_per_study // 2)
+    i2 = len(input_list)  # int(med_index + num_per_study // 2)
+    sep_len = 8
+    median_indices += input_list[i1:i2:sep_len]  # space out b/c we don't want too-similar images
+
+# truncate
+tn_dcm_files = len(median_indices)
+# t_dcm_files = []
+t_dcm_files_data = []
+for i in median_indices:
+    # t_dcm_files.append(dcm_files[i])
+    t_dcm_files_data.append(dcm_files_data[i])
+
+
+# open metadata
+global_ids = []
+for i in range(tn_dcm_files):
+    global_ids.append(t_dcm_files_data[i][0])
+labels, groups = read_metadata.get_labels_groups(global_ids)
+abs_dcm_files = dcm_utils.prepend_abs(abs_data_path, dcm_files)
+n_classes = len(set(labels))
+
+for i in range(tn_dcm_files):
+    if labels[i] < 0:
+        labels[i] = 0
+
+# partition into train / test / split
+unique_ids = list(set(global_ids))
+train_ids, test_ids = model_selection.train_test_split(
+    unique_ids, test_size=0.2) # random_state?
+train_ids, valid_ids = model_selection.train_test_split(
+    train_ids, test_size=0.25)
+
+X_train_files = []
+X_valid_files = []
+X_test_files = []
+y_train = []
+y_valid = []
+y_test = []
+z_train = []
+z_valid = []
+z_test = []
+
+for i in range(tn_dcm_files):
+    gid = global_ids[i]
+    if gid in train_ids:
+        X_train_files.append(abs_dcm_files[i])
+        y_train.append(labels[i])
+        z_train.append(groups[i])
+    if gid in valid_ids:
+        X_valid_files.append(abs_dcm_files[i])
+        y_valid.append(labels[i])
+        z_valid.append(groups[i])
+    if gid in test_ids:
+        X_test_files.append(abs_dcm_files[i])
+        y_test.append(labels[i])
+        z_test.append(groups[i])
+
+
+def to_one_hot(my_int):
+    a = torch.tensor([my_int])
+    return torch.nn.functional.one_hot(a, num_classes=5)
+
+class MyDataset(Dataset):
+
+    def __init__(self, t_abs_dcm_files, t_labels):
+        self.abs_dcm_files = t_abs_dcm_files
+        self.labels = t_labels
+        super().__init__()
+
+    def __len__(self):
+        return len(self.abs_dcm_files)
+
+    def __getitem__(self, idx):
+        x_file = self.abs_dcm_files[idx]
+        x_image = dcm_utils.open_dcm_image(x_file)
+        result = np.empty((1, 1, 256, 256)) # num_channels, z, x, y
+        result[0, 0, :128, :128] = x_image
+        label_hot_np = [0, 0, 0, 0, 0]
+        label_hot_np[self.labels[idx]] = 1
+        label_hot = torch.tensor(label_hot_np)
+        print(label_hot)
+        return idx, create_tensor(result), label_hot, label_hot
+
+
+train_dataset = MyDataset(X_train_files, y_train)
+validation_dataset = MyDataset(X_valid_files, y_valid)
+test_dataset = MyDataset(X_valid_files, y_test)
+# lol = DataLoader(train_dataset, batch_size = 4)
+# for batch in lol:
+#     print(len(batch))
 
 
 logger = logging.getLogger(__name__)
@@ -89,13 +243,15 @@ def get_scheduler(parameters, optimizer, train_loader):
 
 
 def train(parameters: dict, callbacks: list = None):
-    device = torch.device("cuda")
+    device = torch.device(parameters.device)
+    print(device)
     
     # Reproducibility & benchmarking
     torch.backends.cudnn.benchmark = parameters.cudnn_benchmarking
     torch.backends.cudnn.deterministic = parameters.cudnn_deterministic
     torch.manual_seed(parameters.seed)
     if torch.cuda.is_available():
+        print("!!!")
         torch.cuda.manual_seed(parameters.seed)
     np.random.seed(parameters.seed)
 
@@ -104,8 +260,8 @@ def train(parameters: dict, callbacks: list = None):
     # Load data for subgroup statistics
     
     # Prepare datasets
-    train_dataset = np.empty((100, 100, 100))
-    validation_dataset = np.empty((100, 100, 100))
+    # train_dataset = np.empty((100, 100, 100))
+    # validation_dataset = np.empty((100, 100, 100))
 
     # DataLoaders
     train_sampler = None
@@ -130,37 +286,9 @@ def train(parameters: dict, callbacks: list = None):
         pin_memory=parameters.pin_memory,
         drop_last=True
     )
-    validation_labels = validation_dataset.get_labels()
+    # validation_labels = validation_dataset.get_labels()
 
-    if parameters.architecture == 'multi_channel':
-        if parameters.age_as_channel:
-            in_channels = 4
-        else:
-            in_channels = 3
-        model = MultiSequenceChannels(
-            parameters,
-            in_channels=in_channels,
-            inplanes=parameters.inplanes,
-            wide_factor=parameters.resnet_width,
-            stochastic_depth_rate=parameters.stochastic_depth_rate,
-            use_se_layer=parameters.use_se_layer
-        )
-        if parameters.weights:
-            if parameters.weights_policy == 'kinetics':
-                weights = torch.load(parameters.weights)
-                new_weights = {}
-                for k, v in weights.items():
-                    if not any(exclusion in k for exclusion in ['num_batches_tracked']):
-                        k_ = k.replace("layer", "resnet.layer")
-                        k_ = k_.replace("conv1.0", "conv1")
-                        k_ = k_.replace("conv2.0", "conv2")
-                        new_weights[k_] = weights[k]
-                model.load_state_dict(new_weights, strict=False)
-                logger.info("Using Kinetics weights")
-            else:
-                raise NotImplementedError()
-    else:
-        model = MRIModels(parameters, inplanes=parameters.inplanes).model
+    model = create_model()
 
     # Loss function and optimizer
     if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
@@ -190,18 +318,6 @@ def train(parameters: dict, callbacks: list = None):
     scheduler, scheduler_main = get_scheduler(parameters, optimizer, train_loader)
 
     model.to(device)
-    if parameters.half:
-        model, optimizer = amp.initialize(
-            model,
-            optimizer,
-            opt_level=parameters.half_level,
-            min_loss_scale=128
-        )
-    
-    if parameters.weights_policy == 'resume':
-        # Load optimizer state if resuming
-        optimizer.load_state_dict(weights['optimizer'])
-        #amp.load_state_dict(weights['amp'])
     
     # Training/validation loop
     global_step = 0
@@ -238,10 +354,15 @@ def train(parameters: dict, callbacks: list = None):
                 resolve_callbacks('on_batch_start', callbacks)
                 try:
                     indices, raw_data_batch, label_batch, mixed_label = batch
+                    hmm = raw_data_batch.to(device)
+                    output = model(hmm.float())
 
                     for ind_n, ind in enumerate(indices):
-                        training_labels[ind] = list(label_batch[ind_n].numpy())
+                        training_labels[ind] = label_batch[ind_n]
                     label_batch = label_batch.to(device)
+                    print("!!!")
+                    print(label_batch)
+                    print(output)
 
                     minibatch_loss = 0
 
@@ -257,20 +378,22 @@ def train(parameters: dict, callbacks: list = None):
                             mixup_loss2 = loss_train(output, mixed_label[:,1,:])
                             minibatch_loss = (0.5 * mixup_loss1) + (0.5 * mixup_loss2)
                         else:
-                            if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
-                                if parameters.label_type == 'cancer':
-                                    minibatch_loss = loss_train(output, label_batch.type_as(output))
-                                else:
-                                    minibatch_loss = loss_train(output, torch.max(label_batch, 1)[1])  # target converted from one-hot to (batch_size, C)
-                            elif parameters.architecture == '3d_gmic':
-                                is_malignant = label_batch[0][1] or label_batch[0][3]
-                                is_benign = label_batch[0][0] or label_batch[0][2]
-                                target = torch.tensor([[is_malignant, is_benign]]).cuda()
-                                minibatch_loss = loss_train(output, target)
-                            else:
-                                # THIS IS THE DEFAULT LOSS
-                                minibatch_loss = loss_train(output, label_batch)
-                                #print("Loss:", minibatch_loss)
+                            minibatch_loss = loss_train(output, label_batch)
+                            print("Loss:", minibatch_loss)
+                            # if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
+                            #     if parameters.label_type == 'cancer':
+                            #         minibatch_loss = loss_train(output, label_batch.type_as(output))
+                            #     else:
+                            #         minibatch_loss = loss_train(output, torch.max(label_batch, 1)[1])  # target converted from one-hot to (batch_size, C)
+                            # elif parameters.architecture == '3d_gmic':
+                            #     is_malignant = label_batch[0][1] or label_batch[0][3]
+                            #     is_benign = label_batch[0][0] or label_batch[0][2]
+                            #     target = torch.tensor([[is_malignant, is_benign]]).cuda()
+                            #     minibatch_loss = loss_train(output, target)
+                            # else:
+                            #     # THIS IS THE DEFAULT LOSS
+                            #     minibatch_loss = loss_train(output, label_batch)
+                            #     print("Loss:", minibatch_loss)
                             logger.info(f"Minibatch loss: {minibatch_loss}")
                         epoch_loss.append(float(minibatch_loss))
 
@@ -371,7 +494,7 @@ def train(parameters: dict, callbacks: list = None):
                             else:
                                 # default
                                 output = model(subtraction.to(device))
-
+                            print(output)
                             if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
                                 if parameters.label_type == 'cancer':
                                     minibatch_loss = loss_eval(output, label_batch.type_as(output))
@@ -395,7 +518,7 @@ def train(parameters: dict, callbacks: list = None):
 
                 epoch_data['validation_losses'] = validation_losses
                 epoch_data['validation_predictions'] = validation_predictions
-                epoch_data['validation_labels'] = validation_labels
+                # epoch_data['validation_labels'] = validation_labels
                 validation_losses = []
 
                 torch.cuda.empty_cache()
@@ -446,7 +569,8 @@ def get_args():
     # Input   
     parser.add_argument("--input_type", type=str, default='sub_t1c2', choices={'sub_t1c1', 'sub_t1c2', 't1c1', 't1c2', 't1pre', 'mip_t1c2', 'three_channel', 't2', 'random', 'multi', 'MIL'})
     parser.add_argument("--input_size", type=str, default='normal', choices={'normal', 'small'})
-    parser.add_argument("--label_type", type=str, default='cancer', choices={'cancer', 'birads', 'bpe'}, help='What labels should be used, e.g. pretraining on BIRADS and second stage on cancer.')
+    # default was cancer for --label_type
+    parser.add_argument("--label_type", type=str, default='birads', choices={'cancer', 'birads', 'bpe'}, help='What labels should be used, e.g. pretraining on BIRADS and second stage on cancer.')
     parser.add_argument("--subtraction_clipping", type=boolean_string, default=False, help='When performing subtraction, clip lower range values to 0')
     parser.add_argument("--preprocessing_policy", type=str, default='none', choices={'none', 'clahe'})
     parser.add_argument("--age_as_channel", type=boolean_string, default=False, help='Use age as additional channel')
@@ -495,11 +619,11 @@ def get_args():
     parser.add_argument("--minimum_lr", type=float, default=None, help='Minimum learning rate for the scheduler')
 
     # Efficiency 
-    parser.add_argument("--num_workers", type=int, default=19)
+    parser.add_argument("--num_workers", type=int, default=1) #19
     parser.add_argument("--pin_memory", type=boolean_string, default=True)
     parser.add_argument("--cudnn_benchmarking", type=boolean_string, default=True)
     parser.add_argument("--cudnn_deterministic", type=boolean_string, default=False)
-    parser.add_argument("--half", type=boolean_string, default=True, help="Use half precision (fp16)")
+    parser.add_argument("--half", type=boolean_string, default=False, help="Use half precision (fp16)") # true
     parser.add_argument("--half_level", type=str, default='O2', choices={'O1', 'O2'})
     parser.add_argument("--training_fraction", type=float, default=1.00)
     parser.add_argument("--number_of_training_samples", type=int, default=None, help='If this value is not None, it will overrule `training_fraction` parameter')
