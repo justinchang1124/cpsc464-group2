@@ -7,8 +7,10 @@ import random
 import logging
 import pprint
 
+import sys
+sys.path.append('C:/Users/justin/PycharmProjects/cpsc464-group2/nyu_algos')
+
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
 
 import torch
@@ -100,12 +102,10 @@ def train(parameters: dict, callbacks: list = None):
     neptune_experiment = None
     
     # Load data for subgroup statistics
-    subgroup_df = pd.read_pickle(parameters.subgroup_data)
-    parameters.subgroup_df = subgroup_df
     
     # Prepare datasets
-    train_dataset = MRIDataset(parameters, "training")
-    validation_dataset = MRIDataset(parameters, "validation")
+    train_dataset = np.empty((100, 100, 100))
+    validation_dataset = np.empty((100, 100, 100))
 
     sampler = None
 
@@ -133,9 +133,6 @@ def train(parameters: dict, callbacks: list = None):
         drop_last=True
     )
     validation_labels = validation_dataset.get_labels()
-
-    if parameters.lms:
-        torch.cuda.set_enabled_lms(parameters.lms)  # large model support
 
     if parameters.architecture == 'multi_channel':
         if parameters.age_as_channel:
@@ -222,8 +219,7 @@ def train(parameters: dict, callbacks: list = None):
             logger.info(f'Starting *training* epoch number {epoch_number}')
 
             epoch_data = {
-                "epoch_number": epoch_number,
-                "subgroup_df": subgroup_df
+                "epoch_number": epoch_number
             }
             
             training_labels = {}
@@ -507,7 +503,6 @@ def get_args():
     parser.add_argument("--cudnn_deterministic", type=boolean_string, default=False)
     parser.add_argument("--half", type=boolean_string, default=True, help="Use half precision (fp16)")
     parser.add_argument("--half_level", type=str, default='O2', choices={'O1', 'O2'})
-    parser.add_argument("--lms", type=boolean_string, default=False, help='Use Large Model Support')
     parser.add_argument("--training_fraction", type=float, default=1.00)
     parser.add_argument("--number_of_training_samples", type=int, default=None, help='If this value is not None, it will overrule `training_fraction` parameter')
     parser.add_argument("--validation_fraction", type=float, default=1.00)
