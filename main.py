@@ -11,6 +11,7 @@ import keras
 # project code
 import dcm_utils
 import read_metadata
+from labels_presentation import *
 
 abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
 data_path = 'image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
@@ -193,51 +194,10 @@ scale_pred = []
 for pred in prediction:
     scale_pred.append(np.argmax(pred))
 
-n_pred = len(scale_pred)
-
-# group, predicted, actual
-correct_dict = {}
-val_dict = {}
-v2_dict = {}
-total_dict = {}
-
-for i in range(n_pred):
-    key = z_test[i]
-    c_list = correct_dict.get(key)
-    if c_list is None:
-        c_list = 0
-    t_list = total_dict.get(key)
-    if t_list is None:
-        t_list = 0
-    v_list = val_dict.get(key)
-    if v_list is None:
-        v_list = 0
-    v2_list = v2_dict.get(key)
-    if v2_list is None:
-        v2_list = 0
-    if scale_pred[i] == y_test[i]:
-        c_list += 1
-    v_list += y_test[i]
-    v2_list += scale_pred[i]
-    t_list += 1
-    correct_dict[key] = c_list
-    total_dict[key] = t_list
-    val_dict[key] = v_list
-    v2_dict[key] = v2_list
-
-for key in correct_dict:
-    a = correct_dict[key]
-    b = total_dict[key]
-    print("{} accuracy rate: {}/{} = {}".format(key, a, b, a/b))
-    print("{} average real vs AI: {} vs {}".format(key, v2_dict[key]/b, val_dict[key]/b))
+ea_dict, er_dict = separate_by_group(scale_pred, y_test, z_test)
+print(ea_dict, er_dict)
+summarize_ar_dict(ea_dict, er_dict)
 
 
-overall_dict = {}
 
-for group in groups:
-    hmm = overall_dict.get(group)
-    if hmm is None:
-        hmm = 0
-    overall_dict[group] = hmm + 1
 
-overall_dict / len(groups)
