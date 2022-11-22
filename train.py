@@ -17,44 +17,19 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, CosineAnnealingLR, MultiStepLR
-from torch import amp
 
 from utilities.callbacks import History, RedundantCallback, resolve_callbacks, EvaluateEpoch
 from utilities.warmup import GradualWarmupScheduler
 from utilities.utils import boolean_string, save_checkpoint
 from networks import losses
-from networks.models import MRIModels, MultiSequenceChannels
+from architecture_investigation import *
+from labels_presentation import *
 
 
-class ParamTest:
-    pass
-
-def create_tensor(np_array):
-    return torch.from_numpy(np_array).float()
-
-def create_empty_tensor(shape):
-    return create_tensor(np.empty(shape))
-
-def create_model():
-    s_params = ParamTest()
-    s_params.weights = False
-    s_params.architecture = '3d_resnet18_fc'
-    s_params.resnet_groups = 16 # default: 16
-    s_params.input_type = 'birads'  # 5 classes (0, 1, 2, 3, 4)
-    s_params.topk = 10 # default: 10
-    s_params.network_modification = None
-    return MRIModels(s_params, in_channels=1, num_classes=5, force_bottleneck=False, inplanes=64).model
-
-# model = create_model()
-#
-
-# x = create_tensor((1, 1, 1, 256, 256))
-# hmm = model(x)
-
-loss = nn.CrossEntropyLoss()
-predict = torch.tensor([[100, 100, 100, 100, 1000]]).float()
-target = torch.tensor([[0, 0, 0, 0, 1]]).float()
-x = loss(predict, target)
+# loss = nn.CrossEntropyLoss()
+# predict = torch.tensor([[100, 100, 100, 100, 1000]]).float()
+# target = torch.tensor([[0, 0, 0, 0, 1]]).float()
+# x = loss(predict, target)
 
 from sklearn import model_selection
 
@@ -115,19 +90,13 @@ for i in range(tn_dcm_files):
 
 # partition into train / test / split
 unique_ids = list(set(global_ids))
-train_ids, test_ids = model_selection.train_test_split(
-    unique_ids, test_size=0.2) # random_state?
-train_ids, valid_ids = model_selection.train_test_split(
-    train_ids, test_size=0.25)
+train_ids, test_ids = model_selection.train_test_split(unique_ids, test_size=0.2)
 
 X_train_files = []
-X_valid_files = []
 X_test_files = []
 y_train = []
-y_valid = []
 y_test = []
 z_train = []
-z_valid = []
 z_test = []
 
 for i in range(tn_dcm_files):
@@ -136,19 +105,11 @@ for i in range(tn_dcm_files):
         X_train_files.append(abs_dcm_files[i])
         y_train.append(labels[i])
         z_train.append(groups[i])
-    if gid in valid_ids:
-        X_valid_files.append(abs_dcm_files[i])
-        y_valid.append(labels[i])
-        z_valid.append(groups[i])
     if gid in test_ids:
         X_test_files.append(abs_dcm_files[i])
         y_test.append(labels[i])
         z_test.append(groups[i])
 
-
-def to_one_hot(my_int):
-    a = torch.tensor([my_int])
-    return torch.nn.functional.one_hot(a, num_classes=5)
 
 class MyDataset(Dataset):
 
@@ -163,21 +124,61 @@ class MyDataset(Dataset):
     def __getitem__(self, idx):
         x_file = self.abs_dcm_files[idx]
         x_image = dcm_utils.open_dcm_image(x_file)
-        result = np.empty((1, 1, 256, 256)) # num_channels, z, x, y
-        result[0, 0, :128, :128] = x_image
+        result = np.empty((1, 1, 128, 128))  # num_channels, z, x, y
+        result[0, 0] = x_image
         label_hot_np = [0, 0, 0, 0, 0]
         label_hot_np[self.labels[idx]] = 1
-        label_hot = torch.tensor(label_hot_np)
-        print(label_hot)
+        label_hot = torch.tensor(label_hot_np).float()
         return idx, create_tensor(result), label_hot, label_hot
 
 
 train_dataset = MyDataset(X_train_files, y_train)
-validation_dataset = MyDataset(X_valid_files, y_valid)
-test_dataset = MyDataset(X_valid_files, y_test)
-# lol = DataLoader(train_dataset, batch_size = 4)
-# for batch in lol:
-#     print(len(batch))
+test_dataset = MyDataset(X_test_files, y_test)
+
+
+def get_argmax_2x5(output):
+    result = []
+    for j in range(2):
+        max_output_index = 0
+        max_output_val = output[j][0]
+        for k in range(1, 5):
+            if output[j][k] > max_output_val:
+                max_output_index = k
+                max_output_val = output[j][k]
+        result.append(max_output_index)
+    return result
+
+
+def get_correct_2x5(output, target):
+    correct = 0
+    for j in range(2):
+        max_output_index = 0
+        max_output_val = output[j][0]
+        max_target_index = 0
+        max_target_val = target[j][0]
+        for k in range(1, 5):
+            if output[j][k] > max_output_val:
+                max_output_index = k
+                max_output_val = output[j][k]
+            if target[j][k] > max_target_val:
+                max_target_index = k
+                max_target_val = target[j][k]
+        if max_target_index == max_output_index:
+            correct += 1
+    return correct
+
+
+examp1 = torch.tensor([[-3.6933, -0.9389,  0.3308, -2.0394, -2.4012],
+        [-3.4493, -0.8140, -0.5046, -1.4021, -3.3808]])
+
+examp2 = torch.tensor([[0, 0, 1, 0, 0],
+                       [0, 0, 1, 0, 0]])
+
+get_correct_2x5(examp1, examp2)
+
+
+
+
 
 
 logger = logging.getLogger(__name__)
@@ -242,64 +243,35 @@ def get_scheduler(parameters, optimizer, train_loader):
     return scheduler, scheduler_main
 
 
+
 def train(parameters: dict, callbacks: list = None):
     device = torch.device(parameters.device)
-    print(device)
     
     # Reproducibility & benchmarking
     torch.backends.cudnn.benchmark = parameters.cudnn_benchmarking
     torch.backends.cudnn.deterministic = parameters.cudnn_deterministic
     torch.manual_seed(parameters.seed)
-    if torch.cuda.is_available():
-        print("!!!")
-        torch.cuda.manual_seed(parameters.seed)
     np.random.seed(parameters.seed)
 
     neptune_experiment = None
     
     # Load data for subgroup statistics
-    
-    # Prepare datasets
-    # train_dataset = np.empty((100, 100, 100))
-    # validation_dataset = np.empty((100, 100, 100))
 
     # DataLoaders
-    train_sampler = None
-    validation_sampler = None
-    train_shuffle = True
-    
     train_loader = DataLoader(
         train_dataset,
         batch_size=parameters.batch_size,
-        shuffle=train_shuffle,
-        sampler=train_sampler,
-        num_workers=parameters.num_workers,
-        pin_memory=parameters.pin_memory,
-        drop_last=True
+        shuffle=True
     )
-    validation_loader = DataLoader(
-        validation_dataset,
-        batch_size=1,
-        shuffle=False,
-        sampler=validation_sampler,
-        num_workers=parameters.num_workers,
-        pin_memory=parameters.pin_memory,
-        drop_last=True
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=parameters.batch_size,
+        shuffle=True
     )
-    # validation_labels = validation_dataset.get_labels()
 
     model = create_model()
-
-    # Loss function and optimizer
-    if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
-        if parameters.label_type == 'cancer':
-            loss_train = loss_eval = nn.BCEWithLogitsLoss()
-        else:
-            # for BI-RADS and BPE pretraining use softmax
-            loss_train = loss_eval = nn.CrossEntropyLoss()
-    else:
-        loss_train = losses.BCELossWithSmoothing(smoothing=parameters.label_smoothing)
-        loss_eval = losses.bce
+    loss_train = loss_eval = nn.CrossEntropyLoss()
     
     if parameters.optimizer == 'adam':
         optimizer = torch.optim.Adam(
@@ -319,7 +291,7 @@ def train(parameters: dict, callbacks: list = None):
 
     model.to(device)
     
-    # Training/validation loop
+    # Training loop
     global_step = 0
     global_step_val = 0
     best_epoch = 0
@@ -350,6 +322,8 @@ def train(parameters: dict, callbacks: list = None):
             training_losses = []
             training_predictions = dict()
 
+            total_epoch = 0
+            correct_epoch = 0
             for i_batch, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
                 resolve_callbacks('on_batch_start', callbacks)
                 try:
@@ -357,12 +331,16 @@ def train(parameters: dict, callbacks: list = None):
                     hmm = raw_data_batch.to(device)
                     output = model(hmm.float())
 
+                    total_epoch += 2
+                    correct_epoch += get_correct_2x5(output, label_batch)
+                    print()
+                    print("Correct this Epoch: {}".format(correct_epoch))
+                    print("Total this Epoch: {}".format(total_epoch))
+                    print("Accuracy Rate: {}".format(correct_epoch / total_epoch))
+
                     for ind_n, ind in enumerate(indices):
                         training_labels[ind] = label_batch[ind_n]
                     label_batch = label_batch.to(device)
-                    print("!!!")
-                    print(label_batch)
-                    print(output)
 
                     minibatch_loss = 0
 
@@ -372,37 +350,12 @@ def train(parameters: dict, callbacks: list = None):
 
                         for param in model.parameters():
                             param.grad = None
-                        if parameters.mixup:
-                            mixed_label = mixed_label.to(device)
-                            mixup_loss1 = loss_train(output, mixed_label[:,0,:])
-                            mixup_loss2 = loss_train(output, mixed_label[:,1,:])
-                            minibatch_loss = (0.5 * mixup_loss1) + (0.5 * mixup_loss2)
-                        else:
-                            minibatch_loss = loss_train(output, label_batch)
-                            print("Loss:", minibatch_loss)
-                            # if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
-                            #     if parameters.label_type == 'cancer':
-                            #         minibatch_loss = loss_train(output, label_batch.type_as(output))
-                            #     else:
-                            #         minibatch_loss = loss_train(output, torch.max(label_batch, 1)[1])  # target converted from one-hot to (batch_size, C)
-                            # elif parameters.architecture == '3d_gmic':
-                            #     is_malignant = label_batch[0][1] or label_batch[0][3]
-                            #     is_benign = label_batch[0][0] or label_batch[0][2]
-                            #     target = torch.tensor([[is_malignant, is_benign]]).cuda()
-                            #     minibatch_loss = loss_train(output, target)
-                            # else:
-                            #     # THIS IS THE DEFAULT LOSS
-                            #     minibatch_loss = loss_train(output, label_batch)
-                            #     print("Loss:", minibatch_loss)
-                            logger.info(f"Minibatch loss: {minibatch_loss}")
-                        epoch_loss.append(float(minibatch_loss))
+
+                        minibatch_loss = loss_train(output, label_batch)
+                        print("Loss:", minibatch_loss)
 
                         # Backprop
-                        if parameters.half:
-                            with amp.scale_loss(minibatch_loss, optimizer) as scaled_loss:
-                                scaled_loss.backward()
-                        else:
-                            minibatch_loss.backward()
+                        minibatch_loss.backward()
 
                         # Optimizer
                         optimizer.step()
@@ -437,6 +390,27 @@ def train(parameters: dict, callbacks: list = None):
 
                 resolve_callbacks('on_batch_end', callbacks)
 
+            print("TESTING -----------")
+            test_preds = []
+            test_trues = []
+            test_correct = 0
+            test_total = 0
+            for i_batch, batch in tqdm(enumerate(test_loader), total=len(test_loader)):
+                indices, raw_data_batch, label_batch, mixed_label = batch
+                hmm = raw_data_batch.to(device)
+                output = model(hmm.float())
+                test_correct += get_correct_2x5(output, label_batch)
+                test_total += 2
+                test_preds += get_argmax_2x5(output)
+                test_trues += get_argmax_2x5(label_batch)
+                print()
+                print("Correct this Test: {}".format(test_correct))
+                print("Total this Test: {}".format(test_total))
+                print("Accuracy Rate: {}".format(correct_epoch / total_epoch))
+            ea_dict, er_dict = separate_by_group(test_preds, test_trues, z_test)
+            print(ea_dict, er_dict)
+            summarize_ar_dict(ea_dict, er_dict)
+
             # Resolve schedulers at epoch
             if type(scheduler) == ReduceLROnPlateau:
                 scheduler.step(np.mean(epoch_loss))
@@ -447,109 +421,7 @@ def train(parameters: dict, callbacks: list = None):
             elif type(scheduler) in [StepLR, MultiStepLR]:
                 scheduler.step()
 
-            # AUROC
-            epoch_data['training_losses'] = training_losses
-            epoch_data['training_predictions'] = training_predictions
-            epoch_data['training_labels'] = training_labels
-            resolve_callbacks('on_train_end', callbacks, epoch=epoch_number, logs=epoch_data, neptune_experiment=neptune_experiment)
-
             torch.cuda.empty_cache()
-            
-            resolve_callbacks('on_val_start', callbacks)
-            model.eval()
-            logger.info(f'Starting *validation* epoch number {epoch_number}')
-            with torch.no_grad():
-                minibatch_number = 0
-                number_of_used_validation_examples = 0
-
-                validation_losses = []
-                validation_predictions = dict()
-                
-                for i_batch, batch in tqdm(enumerate(validation_loader), total=len(validation_loader)):
-                    indices, raw_data_batch, label_batch, _ = batch
-                    global_step_val += 1
-
-                    label_batch = label_batch.to(device)
-
-                    if len(label_batch) > 0:
-                        number_of_used_validation_examples = number_of_used_validation_examples + len(label_batch)
-                        
-                        subtraction = raw_data_batch
-                        
-                        if parameters.architecture in ['r2plus1d_18', 'mc3_18'] and parameters.input_type != 'three_channels':
-                            subtraction = subtraction.unsqueeze(1).contiguous()
-                        
-                        if parameters.input_type == 'random':
-                            modality_losses = []
-                            for x_modality in range(subtraction.shape[1]):
-                                x = subtraction[:, x_modality, ...]
-                                output = model(x.to(device))
-                                modality_loss = loss_eval(output, label_batch)
-                                modality_losses.append(modality_loss.item())
-                            minibatch_loss = sum(modality_losses) / len(modality_losses)
-                            validation_losses.append(minibatch_loss)
-                        else:
-                            if parameters.architecture == '3d_gmic':
-                                output, _ = model(subtraction.to(device))
-                            else:
-                                # default
-                                output = model(subtraction.to(device))
-                            print(output)
-                            if parameters.architecture in ['3d_resnet18_fc', '2d_resnet50']:
-                                if parameters.label_type == 'cancer':
-                                    minibatch_loss = loss_eval(output, label_batch.type_as(output))
-                                else:
-                                    minibatch_loss = loss_eval(output, torch.max(label_batch, 1)[1])  # target converted from one-hot to (batch_size, C)
-                            elif parameters.architecture == '3d_gmic':
-                                is_malignant = label_batch[0][1] or label_batch[0][3]
-                                is_benign = label_batch[0][0] or label_batch[0][2]
-                                target = torch.tensor([[is_malignant, is_benign]]).cuda()
-                                minibatch_loss = loss_eval(output, target)
-                            else:
-                                # DEFAULT LOSS IN VAL
-                                minibatch_loss = loss_eval(output, label_batch)                        
-                            validation_losses.append(minibatch_loss.item())
-                        logger.info(f"Minibatch loss: {minibatch_loss}")
-
-                        for i in range(0, len(label_batch)):
-                            validation_predictions[indices[i]] = output[i].cpu().numpy()
-
-                    minibatch_number = minibatch_number + 1
-
-                epoch_data['validation_losses'] = validation_losses
-                epoch_data['validation_predictions'] = validation_predictions
-                # epoch_data['validation_labels'] = validation_labels
-                validation_losses = []
-
-                torch.cuda.empty_cache()
-
-            val_res = resolve_callbacks('on_val_end', callbacks, epoch=epoch_number, logs=epoch_data, neptune_experiment=neptune_experiment)
-            
-            # Checkpointing
-            if not parameters.save_checkpoints:
-                # Do not save checkpoints if distributed slave process or user specifies an arg
-                pass
-            else:
-                if parameters.save_best_only:
-                    if parameters.label_type == 'birads' or parameters.label_type == 'bpe':
-                        birads_AUC = val_res['EvaluateEpoch']['auc']
-                        if birads_AUC > best_metric:
-                            best_metric = birads_AUC
-                            best_epoch = epoch_number
-                            model_file_name = os.path.join(parameters.model_saves_directory, f"model_best_auroc")
-                            save_checkpoint(model, model_file_name, optimizer, is_amp=parameters.half, epoch=epoch_number)
-                    else:
-                        malignant_AUC = val_res['EvaluateEpoch']['auc_malignant']
-                        if malignant_AUC > best_metric:
-                            best_metric = malignant_AUC
-                            best_epoch = epoch_number
-                            model_file_name = os.path.join(parameters.model_saves_directory, f"model_best_auroc")
-                            save_checkpoint(model, model_file_name, optimizer, is_amp=parameters.half, epoch=epoch_number)
-                else:
-                    model_file_name = os.path.join(parameters.model_saves_directory, f"model-epoch{epoch_number}")
-                    save_checkpoint(model, model_file_name, optimizer, step=global_step, is_amp=parameters.half, epoch=epoch_number)
-
-            resolve_callbacks('on_epoch_end', callbacks, epoch=epoch_number, logs=epoch_data)
     except KeyboardInterrupt:
         pass
 
@@ -623,7 +495,6 @@ def get_args():
     parser.add_argument("--pin_memory", type=boolean_string, default=True)
     parser.add_argument("--cudnn_benchmarking", type=boolean_string, default=True)
     parser.add_argument("--cudnn_deterministic", type=boolean_string, default=False)
-    parser.add_argument("--half", type=boolean_string, default=False, help="Use half precision (fp16)") # true
     parser.add_argument("--half_level", type=str, default='O2', choices={'O1', 'O2'})
     parser.add_argument("--training_fraction", type=float, default=1.00)
     parser.add_argument("--number_of_training_samples", type=int, default=None, help='If this value is not None, it will overrule `training_fraction` parameter')
