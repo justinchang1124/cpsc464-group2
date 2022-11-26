@@ -94,12 +94,10 @@ def clamp_dcm_image(dcm_image, v_min, v_max):
     """
     validate_norm_ndarray(dcm_image, 2)
     validate_le(v_min, v_max)
-    dcm_image[dcm_image < v_min] = v_min
-    dcm_image[dcm_image > v_max] = v_max
-    return dcm_image
+    return np.clip(dcm_image, v_min, v_max)
 
 
-def perc_clamp_dcm_image(dcm_image, p_min=1, p_max=99):
+def perc_clamp_dcm_image(dcm_image, p_min, p_max):
     """
     Performs percentile-based clamping.
     Note: we assume [p_min, p_max] does not contain [0, 100].
@@ -109,9 +107,12 @@ def perc_clamp_dcm_image(dcm_image, p_min=1, p_max=99):
     :param p_max: assumed to be a real number representing a percentile
     :return: a two-dimensional non-jagged numpy array
     """
-    v_min = np.percentile(dcm_image, p_min)
-    v_max = np.percentile(dcm_image, p_max)
-    return clamp_dcm_image(dcm_image, v_min, v_max)
+    validate_norm_ndarray(dcm_image, 2)
+    validate_le(p_min, p_max)
+    flat_img = dcm_image.flatten()
+    v_min = np.percentile(flat_img, p_min)
+    v_max = np.percentile(flat_img, p_max)
+    return np.clip(dcm_image, v_min, v_max)
 
 
 def downscale_dcm_image(dcm_image, shape):
@@ -124,8 +125,8 @@ def downscale_dcm_image(dcm_image, shape):
     """
     validate_norm_ndarray(dcm_image, 2)
     # the final shape must be no greater than the initial shape
-    validate_le(dcm_image.shape[0], shape[0])
-    validate_le(dcm_image.shape[1], shape[1])
+    validate_le(shape[0], dcm_image.shape[0])
+    validate_le(shape[1], dcm_image.shape[1])
     # the documentation recommends cv2.INTER_AREA for downscaling
     # this also obviates the need to rescale to [0, 255] if the input is [0, 255]
     # see also: cv2.INTER_NEAREST, cv2.INTER_LINEAR, cv2.INTER_CUBIC, cv2.INTER_LANCZOS4
@@ -202,6 +203,8 @@ def downscale_dcm(abs_dcm_file, shape):
     dicom.dcmwrite(abs_dcm_file, dcm_data)
 
 
+print("IMPORTED: dcm_utils")
+
 # opens a specific DCM image
 # note: if the percentile range contains [0, 100], do nothing
 # def open_dcm_image(abs_dcm_file, perc1=1, perc2=99):
@@ -211,38 +214,14 @@ def downscale_dcm(abs_dcm_file, shape):
 
 
 # opens a set of specific DCM images
-# def open_dcm_images(abs_dcm_files):
+# def images_from_dcm_files(abs_dcm_files):
 #     n = len(abs_dcm_files)
 #     result = [None] * n
 #     for i in range(n):
-#         result[i] = open_dcm_image(abs_dcm_files[i])
+#         result[i] = open_dcm_with_image(abs_dcm_files[i]).pixel_array
 #     return result
-
-
-# tests whether a folder contains at least one DCM file with an images
-
 
 
 # opens all DCM images in a folder
 # def open_dcm_folder(abs_dir_path):
-#     return open_dcm_images(dcm_dir_list(abs_dir_path, ret_abs=True))
-
-
-# converts a list of DCM images into an array of DCM images, with resize
-# def dcm_images_to_np3d(dcm_images):
-#     n = len(dcm_images)
-#     if n < 1:
-#         raise ValueError("A positive number of images is required!")
-#     shape = dcm_images[0].shape
-#     result = np.empty((n, *shape))  # splat
-#     for i in range(n):
-#         if dcm_images[i].shape != shape:
-#             raise ValueError("Not all images have the expected shape!")
-#         result[i] = dcm_images[i]
-#     return result
-
-
-
-
-
-print("IMPORTED: dcm_utils")
+#     return images_from_dcm_files(dcm_dir_list(abs_dir_path, ret_abs=True))

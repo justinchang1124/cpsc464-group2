@@ -94,7 +94,7 @@ print(dcm_utils.dcm_dir_list(abs_data_path, ret_abs=True)[:6])
 # test validate_norm_ndarray:
 invalid1 = "dog"
 invalid2 = np.array([[1, 2, 3], [4, 5]], dtype=object)
-valid1 = np.array([[1, 2, 3], [4, 5, 6]])
+valid1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]).astype('float32')
 expect_error_validate_norm_ndarray(invalid1, 1)
 expect_error_validate_norm_ndarray(invalid2, 2)
 expect_error_validate_norm_ndarray(valid1, 1)
@@ -108,7 +108,22 @@ try:
 except (Exception,):
     print("validate_le correctly raised an error!")
 
+# test clamp_dcm_image
+print(dcm_utils.clamp_dcm_image(valid1, 3, 7))
 
+# test perc_clamp_dcm_image
+print(dcm_utils.perc_clamp_dcm_image(valid1, 5, 95))
+
+# test downscale_dcm_image
+print(dcm_utils.downscale_dcm_image(valid1, (2, 2)))
+
+# test normalize_dcm_image
+print(dcm_utils.normalize_dcm_image(valid1))
+
+# test standardize_dcm_image
+print(dcm_utils.standardize_dcm_image(valid1))
+
+# test manipulating DICOM files
 n_dcm_files = len(dcm_files)
 
 dcm_files_data = []
@@ -120,11 +135,16 @@ for i in range(n_dcm_files):
     dcm_studies[i] = os.path.join(*dcm_files_data[i][:-1])  # splat
 dcm_studies = sorted(list(set(dcm_studies)))
 
-input("Press enter to proceed with animating ...")
-
 for dcm_study in dcm_studies:
     abs_dcm_study = os.path.join(abs_data_path, dcm_study)
-    dcm_images = dcm_utils.open_dcm_folder(abs_dcm_study)
-    dcm_utils.animate_dcm_images(dcm_images, False)
+    abs_study_files = dcm_utils.dcm_dir_list(abs_dcm_study, ret_abs=True)
+    n_study_files = len(abs_study_files)
+    dcm_images = [None] * n_study_files
+    for i in range(n_study_files):
+        dcm_data = dcm_utils.open_dcm_with_image(abs_study_files[i])
+        img_clamp = dcm_utils.perc_clamp_dcm_image(dcm_data.pixel_array, 1, 99)
+        img_norm = dcm_utils.normalize_dcm_image(img_clamp)
+        dcm_images[i] = img_norm * 255.0
+    animate_dcm_images(dcm_images, False)
 
 
