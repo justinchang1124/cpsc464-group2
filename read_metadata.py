@@ -2,9 +2,9 @@ import os
 import numpy as np
 
 abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
-groups_path = 'groups.txt'
-labels_path = 'labels.txt'
-ids_path = 'patient_ids.txt'
+groups_path = 'resources/groups.txt'
+labels_path = 'resources/labels.txt'
+ids_path = 'resources/patient_ids.txt'
 abs_ids_path = '{}/{}'.format(abs_proj_path, ids_path)
 abs_groups_path = '{}/{}'.format(abs_proj_path, groups_path)
 abs_labels_path = '{}/{}'.format(abs_proj_path, labels_path)

@@ -29,8 +29,8 @@ def id_of_patient_dir(patient_dir):
     id_as_match = re.search("[0-9]+$", patient_dir)
     return int(id_as_match.group(0))
 
-start_slices_path = 'start_slices.txt'
-end_slices_path = 'end_slices.txt'
+start_slices_path = 'resources/start_slices.txt'
+end_slices_path = 'resources/end_slices.txt'
 abs_start_slices_path = '{}/{}'.format(abs_proj_path, start_slices_path)
 abs_end_slices_path = '{}/{}'.format(abs_proj_path, end_slices_path)
 start_slices = np.genfromtxt(abs_start_slices_path, dtype=int)

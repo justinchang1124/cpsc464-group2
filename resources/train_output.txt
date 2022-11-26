@@ -103,24 +103,6 @@ Process finished with exit code 0
 black accuracy rate: 249/864 = 0.2881944444444444
 black average real vs AI: 1.8321759259259258 vs 1.7997685185185186
 black difference: Variance = 0.6641589506172839, Mean Absolute Difference = 0.9861111111111112
-white accuracy rate: 607/2129 = 0.28511038046031
-white average real vs AI: 1.826209488022546 vs 1.8116486613433538
-white difference: Variance = 0.6214156382559307, Mean Absolute Difference = 0.9624236730859559
-asian accuracy rate: 22/58 = 0.3793103448275862
-asian average real vs AI: 1.8620689655172413 vs 1.7241379310344827
-asian difference: Variance = 0.7051129607609989, Mean Absolute Difference = 0.8620689655172413
-native accuracy rate: 2/15 = 0.13333333333333333
-native average real vs AI: 1.6666666666666667 vs 1.9333333333333333
-native difference: Variance = 0.32888888888888884, Mean Absolute Difference = 1.0666666666666667
-N/A accuracy rate: 17/66 = 0.25757575757575757
-N/A average real vs AI: 1.621212121212121 vs 1.9393939393939394
-N/A difference: Variance = 0.6494490358126722, Mean Absolute Difference = 1.0454545454545454
-multi accuracy rate: 3/8 = 0.375
-multi average real vs AI: 1.75 vs 1.375
-multi difference: Variance = 0.234375, Mean Absolute Difference = 0.625
-
-black average real vs AI: 1.8356481481481481 vs 1.7916666666666667
-black difference: Variance = 0.5545213906035664, Mean Absolute Difference = 0.8171296296296297
 white accuracy rate: 747/2129 = 0.35086895255988726
 white average real vs AI: 1.8163457022076093 vs 1.7815875998121184
 white difference: Variance = 0.48259193701861686, Mean Absolute Difference = 0.7815875998121183
@@ -133,6 +115,6 @@ native difference: Variance = 0.5155555555555557, Mean Absolute Difference = 0.8
 N/A accuracy rate: 19/66 = 0.2878787878787879
 N/A average real vs AI: 1.8636363636363635 vs 1.8636363636363635
 N/A difference: Variance = 0.5004591368227731, Mean Absolute Difference = 0.8787878787878788
-multi accuracy rate: 2/8 = 0.25
-multi average real vs AI: 1.75 vs 2.0
-multi difference: Variance = 0.5, Mean Absolute Difference = 1.0
+multi accuracy rate: 3/8 = 0.375
+multi average real vs AI: 1.75 vs 1.375
+multi difference: Variance = 0.234375, Mean Absolute Difference = 0.625
