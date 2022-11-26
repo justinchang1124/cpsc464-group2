@@ -27,6 +27,6 @@ pip install pydicom
 # target of NBIA data retriever: C:\Users\justin\PycharmProjects\cpsc464-group2\image_data
 
 # For each part:
-# Step 2: use test_dcm_utils.py to find and remove unopenable images
+# Step 2: use remove_invalid.py to find and remove unopenable images
 # Step 3: use filtering.py to find and remove unnecessary images
 # Step 4: use downsample.py to standardize the resolution of each dicom file

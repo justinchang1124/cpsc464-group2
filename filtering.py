@@ -13,10 +13,12 @@ dcm_files_data = []
 for file in dcm_files:
     dcm_files_data.append(file.split('\\'))
 
+
 def id_of_file_slice(abs_dcm_file):
     truncate_left = re.search("[0-9]+[.]dcm$", abs_dcm_file)
     truncate_right = re.search("[0-9]+", truncate_left.group(0))
     return int(truncate_right.group(0))
+
 
 def filter_file_slice(abs_dcm_file, min_slice, max_slice):
     if min_slice > max_slice:
@@ -25,9 +27,11 @@ def filter_file_slice(abs_dcm_file, min_slice, max_slice):
     if slice_num > max_slice or slice_num < min_slice:
         os.unlink(abs_dcm_file)
 
+
 def id_of_patient_dir(patient_dir):
     id_as_match = re.search("[0-9]+$", patient_dir)
     return int(id_as_match.group(0))
+
 
 start_slices_path = 'resources/start_slices.txt'
 end_slices_path = 'resources/end_slices.txt'
