@@ -23,4 +23,4 @@ pip install pydicom
 # Step 2: Set the target of the NBIA data retriever: 'C:\Users\justin\PycharmProjects\cpsc464-group2\image_data'
 # Step 3: intermittently use remove_invalid.py to find and remove invalid images
 # Step 4: intermittently use filtering.py to find and remove unnecessary images
-# Step 5: finally, use downsample.py to standardize the resolution of each dicom file
+# Step 5: finally, use downscale.py to standardize the resolution of each dicom file
