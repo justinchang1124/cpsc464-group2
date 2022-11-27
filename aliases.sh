@@ -19,14 +19,8 @@ conda install opencv
 conda install scikit-learn
 pip install pydicom
 
-# Step 1: split the .tcia manifest, perhaps like below:
-# P1: 0-25%
-# P2: 50%-100%
-# P3: 25%-50%
-
-# target of NBIA data retriever: C:\Users\justin\PycharmProjects\cpsc464-group2\image_data
-
-# For each part:
-# Step 2: use remove_invalid.py to find and remove unopenable images
-# Step 3: use filtering.py to find and remove unnecessary images
-# Step 4: use downsample.py to standardize the resolution of each dicom file
+# Step 1: Download the TCIA manifest (a copy is included)
+# Step 2: Set the target of the NBIA data retriever: 'C:\Users\justin\PycharmProjects\cpsc464-group2\image_data'
+# Step 3: intermittently use remove_invalid.py to find and remove invalid images
+# Step 4: intermittently use filtering.py to find and remove unnecessary images
+# Step 5: finally, use downsample.py to standardize the resolution of each dicom file
