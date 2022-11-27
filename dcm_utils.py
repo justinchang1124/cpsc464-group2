@@ -190,17 +190,18 @@ def downscale_dcm(abs_dcm_file, shape):
 
     :param abs_dcm_file: see validate_abs_dcm_file(abs_dcm_file)
     :param shape: assumed to be a tuple of two integers
-    :return: void
+    :return: whether downscaling occurred
     """
     dcm_data = open_dcm_with_image(abs_dcm_file)
     px_array = dcm_data.pixel_array
     # no point in resizing if the shape is already correct
     if shape == px_array.shape:
-        return
+        return False
     downscaled_img = downscale_dcm_image(px_array, shape)
     dcm_data.PixelData = downscaled_img.tobytes()
     dcm_data.Rows, dcm_data.Columns = shape
     dicom.dcmwrite(abs_dcm_file, dcm_data)
+    return True
 
 
 print("IMPORTED: dcm_utils")
