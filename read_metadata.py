@@ -28,7 +28,3 @@ def id_to_label(id):
 
 def id_to_group(id):
     return id_to_grp[id]
-
-
-print(id_to_group("Breast_MRI_001"))
-print(id_to_label("Breast_MRI_001"))

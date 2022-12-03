@@ -35,6 +35,7 @@ from sklearn import model_selection
 from architecture import create_model
 import dcm_utils
 import read_metadata
+import random
 
 abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
 data_path = 'image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
@@ -46,46 +47,17 @@ dcm_files_data = []
 for file in dcm_files:
     dcm_files_data.append(file.split('\\'))
 
-dcm_study_dict = {}
-for i in range(n_dcm_files):
-    key = os.path.join(*dcm_files_data[i][:-1])
-    input_list = dcm_study_dict.get(key)
-    if input_list is None:
-        input_list = []
-    input_list.append(i)
-    dcm_study_dict[key] = input_list
-
-median_indices = []
-for key in dcm_study_dict:
-    input_list = dcm_study_dict[key]
-    # med_index = len(input_list) // 2
-    # num_per_study = 40
-    # get the median 50 elements
-    i1 = 0  # int(med_index - num_per_study // 2)
-    i2 = len(input_list)  # int(med_index + num_per_study // 2)
-    sep_len = 8
-    median_indices += input_list[i1:i2:sep_len]  # space out b/c we don't want too-similar images
-
-# truncate
-tn_dcm_files = len(median_indices)
-# t_dcm_files = []
-t_dcm_files_data = []
-for i in median_indices:
-    # t_dcm_files.append(dcm_files[i])
-    t_dcm_files_data.append(dcm_files_data[i])
-
-
 # open metadata
 global_ids = []
-for i in range(tn_dcm_files):
-    global_ids.append(t_dcm_files_data[i][0])
+for i in range(n_dcm_files):
+    global_ids.append(dcm_files_data[i][0])
 labels = [read_metadata.id_to_label(id) for id in global_ids]
 groups = [read_metadata.id_to_group(id) for id in global_ids]
 
 abs_dcm_files = dcm_utils.prepend_abs(abs_data_path, dcm_files)
 n_classes = len(set(labels))
 
-for i in range(tn_dcm_files):
+for i in range(n_dcm_files):
     if labels[i] < 0:
         labels[i] = 0
 
@@ -100,7 +72,7 @@ y_test = []
 z_train = []
 z_test = []
 
-for i in range(tn_dcm_files):
+for i in range(1000):  # n_dcm_files
     gid = global_ids[i]
     if gid in train_ids:
         X_train_files.append(abs_dcm_files[i])
@@ -114,9 +86,10 @@ for i in range(tn_dcm_files):
 
 class MyDataset(Dataset):
 
-    def __init__(self, t_abs_dcm_files, t_labels):
+    def __init__(self, t_abs_dcm_files, t_labels, t_groups):
         self.abs_dcm_files = t_abs_dcm_files
         self.labels = t_labels
+        self.groups = t_groups
         super().__init__()
 
     def __len__(self):
@@ -129,11 +102,11 @@ class MyDataset(Dataset):
         img_norm = dcm_utils.normalize_dcm_image(img_clamp)
         img_tensor = dcm_utils.dcm_image_to_tensor4d(img_norm)
         img_aug = dcm_utils.augment_tensor4d(img_tensor)
-        return idx, img_aug, dcm_utils.label_to_one_hot(self.labels[idx])
+        return idx, img_aug, dcm_utils.label_to_one_hot(self.labels[idx]), self.groups[idx]
 
 
-train_dataset = MyDataset(X_train_files, y_train)
-test_dataset = MyDataset(X_test_files, y_test)
+train_dataset = MyDataset(X_train_files, y_train, z_train)
+test_dataset = MyDataset(X_test_files, y_test, z_test)
 
 
 logger = logging.getLogger(__name__)
@@ -282,7 +255,7 @@ def train(parameters: dict, callbacks: list = None):
             for i_batch, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
                 resolve_callbacks('on_batch_start', callbacks)
                 try:
-                    indices, raw_data_batch, label_batch = batch
+                    indices, raw_data_batch, label_batch, groups = batch
                     output = model(raw_data_batch)
 
                     output_labels = dcm_utils.get_argmax_batch(output)
@@ -290,20 +263,19 @@ def train(parameters: dict, callbacks: list = None):
 
                     correct_epoch += dcm_utils.num_correct(output_labels, target_labels)
                     total_epoch += len(output_labels)
-                    print()
-                    print("Correct this Epoch: {}".format(correct_epoch))
-                    print("Total this Epoch: {}".format(total_epoch))
-                    print("Accuracy Rate: {}".format(correct_epoch / total_epoch))
+
+                    if i_batch % 100 == 0:
+                        print()
+                        print("Correct this Epoch: {}".format(correct_epoch))
+                        print("Total this Epoch: {}".format(total_epoch))
+                        print("Accuracy Rate: {}".format(correct_epoch / total_epoch))
 
                     for ind_n, ind in enumerate(indices):
                         training_labels[ind] = label_batch[ind_n]
                     label_batch = label_batch.to(device)
 
-                    minibatch_loss = 0
-
                     if len(label_batch) > 0:
                         number_of_used_training_examples = number_of_used_training_examples + len(label_batch)
-                        subtraction = raw_data_batch  # (b_s, z, x, y)
 
                         for param in model.parameters():
                             param.grad = None
@@ -350,19 +322,19 @@ def train(parameters: dict, callbacks: list = None):
             print("TESTING -----------")
             test_preds = []
             test_trues = []
-            test_correct = 0
-            test_total = 0
+            test_group = []
             for i_batch, batch in tqdm(enumerate(test_loader), total=len(test_loader)):
-                indices, raw_data_batch, label_batch = batch
+                indices, raw_data_batch, label_batch, groups = batch
+                test_group += groups
                 output = model(raw_data_batch)
 
                 test_preds += dcm_utils.get_argmax_batch(output)
                 test_trues += dcm_utils.get_argmax_batch(label_batch)
 
-            dcm_utils.write_labels(test_preds, os.path.join())
-            print(test_trues)
-            print(z_test)
-            ea_dict, er_dict = dcm_utils.separate_by_group(test_preds, test_trues, z_test)
+            dcm_utils.write_labels(test_preds, "{}/preds_{}.txt".format(abs_proj_path, epoch_number))
+            dcm_utils.write_labels(test_trues, "{}/trues_{}.txt".format(abs_proj_path, epoch_number))
+            dcm_utils.write_labels(z_test, "{}/ztest_{}.txt".format(abs_proj_path, epoch_number))
+            ea_dict, er_dict = dcm_utils.separate_by_group(test_preds, test_trues, test_group)
             dcm_utils.summarize_ar_dict(ea_dict, er_dict)
 
             # Resolve schedulers at epoch
