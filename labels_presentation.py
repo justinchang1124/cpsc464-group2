@@ -39,15 +39,26 @@ def summarize_ar_dict(a_dict, r_dict):
     for grp_key in a_dict.keys():
         r_list = r_dict[grp_key]
         a_list = a_dict[grp_key]
-        d_list = [abs(a_i - b_i) for a_i, b_i in zip(a_list, r_list)]   # absolute differences list
-        correct = d_list.count(0)
+        d_list = [a_i - b_i for a_i, b_i in zip(a_list, r_list)]  # differences list
+        n_sup = 0
+        n_sub = 0
+        n_cor = 0
+        for diff in d_list:
+            if diff == 0:
+                n_cor += 1
+            elif diff > 0:
+                n_sup += 1
+            else:
+                n_sub += 1
+
         total = len(d_list)
-        print("{} accuracy rate: {}/{} = {}".format(grp_key, correct, total, correct / total))
+        print("{} accuracy rate: {}=, {}+, {}-, total {}/{}".format(grp_key, n_cor, n_sup, n_sub, n_cor / total))
         avg_re = sum(r_list) / total
         avg_ai = sum(a_list) / total
-        avg_df = sum(d_list) / total
         print("{} average real vs AI: {} vs {}".format(grp_key, avg_re, avg_ai))
-        print("{} difference: Variance = {}, Mean Absolute Difference = {}".format(grp_key, np.var(d_list), avg_df))
+        df_var = np.var(d_list)
+        df_mad = sum(map(abs, d_list)) / total
+        print("{} difference: Variance = {}, Mean Absolute Difference = {}".format(grp_key, df_var, df_mad))
 
 
 # example usage

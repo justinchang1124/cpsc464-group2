@@ -245,7 +245,7 @@ def tensor4d_to_dcm_image(tensor4d):
 augmenter = torchio.transforms.Compose([
     torchio.transforms.RandomFlip(axes=0, flip_probability=0.5),
     torchio.transforms.RandomFlip(axes=1, flip_probability=0.5),
-    torchio.transforms.RandomFlip(axes=2, flip_probability=0.5),
+    # torchio.transforms.RandomFlip(axes=2, flip_probability=0.5),  # not needed
     torchio.transforms.RandomAffine(
         scales=0.10,
         degrees=10,
@@ -256,7 +256,53 @@ augmenter = torchio.transforms.Compose([
 
 
 def augment_tensor4d(tensor4d):
+    """
+    Augments an image with random flip / affline transformations
+
+    :param tensor4d: a four-dimensional Torch tensor (channels = 1, x, y, z = 1)
+    :return: a four-dimensional Torch tensor (channels = 1, x, y, z = 1)
+    """
     return augmenter(tensor4d)
+
+
+def label_to_one_hot(i):
+    """
+    Converts a label to a one-hot Torch tensor encoding.
+
+    :param i: assumed to be in [0, 1, 2, 3, 4]
+    :return: a one-hot Torch tensor encoding
+    """
+    one_hot = [0, 0, 0, 0, 0]
+    one_hot[i] = 1
+    return torch.tensor(one_hot).float()
+
+
+def one_hot_to_label(one_hot):
+    """
+    Converts a one-hot Torch tensor encoding to a label.
+
+    :param one_hot: a one-hot Torch tensor encoding
+    :return: a member of [0, 1, 2, 3, 4]
+    """
+    label_ind = 0
+    for i in range(1, 5):
+        if one_hot[i] > one_hot[label_ind]:
+            label_ind = i
+    return label_ind
+
+
+def get_argmax_batch(output):
+    """
+    Converts a batch of one-hot encodings to a list of labels.
+
+    :param output: a batch of one-hot encodings
+    :return: a list of labels
+    """
+    bat_size = output.size()[0]
+    result = [None] * bat_size
+    for i in range(bat_size):
+        result[i] = one_hot_to_label(output[i])
+    return result
 
 
 print("IMPORTED: dcm_utils")

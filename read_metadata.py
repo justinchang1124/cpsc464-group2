@@ -1,4 +1,3 @@
-import os
 import numpy as np
 
 abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
@@ -22,12 +21,14 @@ for i in range(n):
     id_to_grp[met_ids[i]] = group_mapping[met_groups[i]]
     id_to_lab[met_ids[i]] = met_labels[i]
 
-def get_labels_groups(ids):
-    n = len(ids)
-    labels = [None] * n
-    groups = [None] * n
-    for i in range(n):
-        id = ids[i]
-        labels[i] = id_to_lab[id]
-        groups[i] = id_to_grp[id]
-    return labels, groups
+
+def id_to_label(id):
+    return id_to_lab[id]
+
+
+def id_to_group(id):
+    return id_to_grp[id]
+
+
+print(id_to_group("Breast_MRI_001"))
+print(id_to_label("Breast_MRI_001"))
