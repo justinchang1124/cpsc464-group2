@@ -61,10 +61,6 @@ for i in range(n_dcm_files):
     if labels[i] < 0:
         labels[i] = 0
 
-# partition into train / test / split
-unique_ids = list(set(global_ids))
-train_ids, test_ids = model_selection.train_test_split(unique_ids, test_size=0.2)
-
 X_train_files = []
 X_test_files = []
 y_train = []
@@ -72,16 +68,26 @@ y_test = []
 z_train = []
 z_test = []
 
-for i in range(1000):  # n_dcm_files
-    gid = global_ids[i]
-    if gid in train_ids:
+grpmap_train = read_metadata.empty_group_counter()
+grpmap_test = read_metadata.empty_group_counter()
+
+iter_order = list(range(n_dcm_files))
+random.shuffle(iter_order)
+
+for i in iter_order:
+    # get 400 of each group in training, 100 of each group in testing
+    if grpmap_train[groups[i]] <= 200:
         X_train_files.append(abs_dcm_files[i])
         y_train.append(labels[i])
         z_train.append(groups[i])
-    if gid in test_ids:
+        grpmap_train[groups[i]] += 1
+    elif grpmap_test[groups[i]] <= 50:
         X_test_files.append(abs_dcm_files[i])
         y_test.append(labels[i])
         z_test.append(groups[i])
+        grpmap_test[groups[i]] += 1
+    else:
+        continue
 
 
 class MyDataset(Dataset):
@@ -402,7 +408,7 @@ def get_args():
     parser.add_argument("--local_rank", type=int, default=-1, metavar='N', help='Local process rank')
 
     # Optimizers, schedulers
-    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--num_epochs", type=int, default=75)
     parser.add_argument("--optimizer", type=str, default='adam', choices={'adam', 'adamw', 'sgd'})
     parser.add_argument("--lr", type=float, default=2e-5)

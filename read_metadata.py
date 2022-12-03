@@ -28,3 +28,10 @@ def id_to_label(id):
 
 def id_to_group(id):
     return id_to_grp[id]
+
+
+def empty_group_counter():
+    result = {}
+    for group in group_mapping:
+        result[group] = 0
+    return result
