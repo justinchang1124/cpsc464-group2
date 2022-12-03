@@ -36,6 +36,7 @@ from architecture import create_model
 import dcm_utils
 import read_metadata
 import random
+from datetime import datetime
 
 abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
 data_path = 'image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
@@ -337,9 +338,10 @@ def train(parameters: dict, callbacks: list = None):
                 test_preds += dcm_utils.get_argmax_batch(output)
                 test_trues += dcm_utils.get_argmax_batch(label_batch)
 
-            dcm_utils.write_labels(test_preds, "{}/preds_{}.txt".format(abs_proj_path, epoch_number))
-            dcm_utils.write_labels(test_trues, "{}/trues_{}.txt".format(abs_proj_path, epoch_number))
-            dcm_utils.write_labels(z_test, "{}/ztest_{}.txt".format(abs_proj_path, epoch_number))
+            time_str = datetime.now().strftime("%d_%m_%Y-%H_%M_%S")
+            dcm_utils.write_labels(test_preds, "{}/preds_{}_{}.txt".format(abs_proj_path, epoch_number, time_str))
+            dcm_utils.write_labels(test_trues, "{}/trues_{}_{}.txt".format(abs_proj_path, epoch_number, time_str))
+            dcm_utils.write_labels(z_test, "{}/ztest_{}_{}.txt".format(abs_proj_path, epoch_number, time_str))
             ea_dict, er_dict = dcm_utils.separate_by_group(test_preds, test_trues, test_group)
             dcm_utils.summarize_ar_dict(ea_dict, er_dict)
 
