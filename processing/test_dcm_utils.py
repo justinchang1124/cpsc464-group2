@@ -3,6 +3,7 @@ import numpy as np
 import os
 import matplotlib
 from matplotlib.animation import FuncAnimation
+import torch
 
 # Qt5Agg does not function
 matplotlib.use("TkAgg")
@@ -122,6 +123,19 @@ print(dcm_utils.normalize_dcm_image(valid1))
 
 # test standardize_dcm_image
 print(dcm_utils.standardize_dcm_image(valid1))
+
+# test label_to_one_hot
+print(dcm_utils.label_to_one_hot(3))
+
+# test get_argmax_batch
+examp1 = torch.tensor([[-3.6933, -0.9389,  0.3308, -2.0394, -2.4012],
+        [-3.4493, -0.8140, -0.5046, -1.4021, -3.3808]])
+
+examp2 = torch.tensor([[0, 0, 1, 0, 0],
+                       [0, 0, 0, 1, 0]])
+
+print(dcm_utils.get_argmax_batch(examp1))
+print(dcm_utils.get_argmax_batch(examp2))
 
 aug_flag = input("Type 'y' to augment, any other non-empty string to skip. Press enter to animate ...")
 
