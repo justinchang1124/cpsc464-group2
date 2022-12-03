@@ -22,8 +22,6 @@ from utilities.callbacks import History, RedundantCallback, resolve_callbacks, E
 from utilities.warmup import GradualWarmupScheduler
 from utilities.utils import boolean_string, save_checkpoint
 from networks import losses
-from architecture_investigation import *
-from labels_presentation import *
 
 
 # loss = nn.CrossEntropyLoss()
@@ -34,6 +32,7 @@ from labels_presentation import *
 from sklearn import model_selection
 
 # project code
+from architecture import create_model
 import dcm_utils
 import read_metadata
 
@@ -80,7 +79,9 @@ for i in median_indices:
 global_ids = []
 for i in range(tn_dcm_files):
     global_ids.append(t_dcm_files_data[i][0])
-labels, groups = read_metadata.get_labels_groups(global_ids)
+labels = [read_metadata.id_to_label(id) for id in global_ids]
+groups = [read_metadata.id_to_group(id) for id in global_ids]
+
 abs_dcm_files = dcm_utils.prepend_abs(abs_data_path, dcm_files)
 n_classes = len(set(labels))
 
@@ -122,63 +123,17 @@ class MyDataset(Dataset):
         return len(self.abs_dcm_files)
 
     def __getitem__(self, idx):
-        x_file = self.abs_dcm_files[idx]
-        x_image = dcm_utils.open_dcm_image(x_file)
-        result = np.empty((1, 1, 128, 128))  # num_channels, z, x, y
-        result[0, 0] = x_image
-        label_hot_np = [0, 0, 0, 0, 0]
-        label_hot_np[self.labels[idx]] = 1
-        label_hot = torch.tensor(label_hot_np).float()
-        return idx, create_tensor(result), label_hot, label_hot
+        dcm_file = self.abs_dcm_files[idx]
+        dcm_data = dcm_utils.open_dcm_with_image(dcm_file)
+        img_clamp = dcm_utils.perc_clamp_dcm_image(dcm_data.pixel_array, 1, 99)
+        img_norm = dcm_utils.normalize_dcm_image(img_clamp)
+        img_tensor = dcm_utils.dcm_image_to_tensor4d(img_norm)
+        img_aug = dcm_utils.augment_tensor4d(img_tensor)
+        return idx, img_aug, dcm_utils.label_to_one_hot(self.labels[idx])
 
 
 train_dataset = MyDataset(X_train_files, y_train)
 test_dataset = MyDataset(X_test_files, y_test)
-
-
-def get_argmax_2x5(output):
-    result = []
-    for j in range(2):
-        max_output_index = 0
-        max_output_val = output[j][0]
-        for k in range(1, 5):
-            if output[j][k] > max_output_val:
-                max_output_index = k
-                max_output_val = output[j][k]
-        result.append(max_output_index)
-    return result
-
-
-def get_correct_2x5(output, target):
-    correct = 0
-    for j in range(2):
-        max_output_index = 0
-        max_output_val = output[j][0]
-        max_target_index = 0
-        max_target_val = target[j][0]
-        for k in range(1, 5):
-            if output[j][k] > max_output_val:
-                max_output_index = k
-                max_output_val = output[j][k]
-            if target[j][k] > max_target_val:
-                max_target_index = k
-                max_target_val = target[j][k]
-        if max_target_index == max_output_index:
-            correct += 1
-    return correct
-
-
-examp1 = torch.tensor([[-3.6933, -0.9389,  0.3308, -2.0394, -2.4012],
-        [-3.4493, -0.8140, -0.5046, -1.4021, -3.3808]])
-
-examp2 = torch.tensor([[0, 0, 1, 0, 0],
-                       [0, 0, 1, 0, 0]])
-
-get_correct_2x5(examp1, examp2)
-
-
-
-
 
 
 logger = logging.getLogger(__name__)
@@ -327,12 +282,14 @@ def train(parameters: dict, callbacks: list = None):
             for i_batch, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
                 resolve_callbacks('on_batch_start', callbacks)
                 try:
-                    indices, raw_data_batch, label_batch, mixed_label = batch
-                    hmm = raw_data_batch.to(device)
-                    output = model(hmm.float())
+                    indices, raw_data_batch, label_batch = batch
+                    output = model(raw_data_batch)
 
-                    total_epoch += 2
-                    correct_epoch += get_correct_2x5(output, label_batch)
+                    output_labels = dcm_utils.get_argmax_batch(output)
+                    target_labels = dcm_utils.get_argmax_batch(label_batch)
+
+                    correct_epoch += dcm_utils.num_correct(output_labels, target_labels)
+                    total_epoch += len(output_labels)
                     print()
                     print("Correct this Epoch: {}".format(correct_epoch))
                     print("Total this Epoch: {}".format(total_epoch))
@@ -396,20 +353,17 @@ def train(parameters: dict, callbacks: list = None):
             test_correct = 0
             test_total = 0
             for i_batch, batch in tqdm(enumerate(test_loader), total=len(test_loader)):
-                indices, raw_data_batch, label_batch, mixed_label = batch
-                hmm = raw_data_batch.to(device)
-                output = model(hmm.float())
-                test_correct += get_correct_2x5(output, label_batch)
-                test_total += 2
-                test_preds += get_argmax_2x5(output)
-                test_trues += get_argmax_2x5(label_batch)
-                print()
-                print("Correct this Test: {}".format(test_correct))
-                print("Total this Test: {}".format(test_total))
-                print("Accuracy Rate: {}".format(correct_epoch / total_epoch))
-            ea_dict, er_dict = separate_by_group(test_preds, test_trues, z_test)
-            print(ea_dict, er_dict)
-            summarize_ar_dict(ea_dict, er_dict)
+                indices, raw_data_batch, label_batch = batch
+                output = model(raw_data_batch)
+
+                test_preds += dcm_utils.get_argmax_batch(output)
+                test_trues += dcm_utils.get_argmax_batch(label_batch)
+
+            dcm_utils.write_labels(test_preds, os.path.join())
+            print(test_trues)
+            print(z_test)
+            ea_dict, er_dict = dcm_utils.separate_by_group(test_preds, test_trues, z_test)
+            dcm_utils.summarize_ar_dict(ea_dict, er_dict)
 
             # Resolve schedulers at epoch
             if type(scheduler) == ReduceLROnPlateau:
@@ -476,7 +430,7 @@ def get_args():
     parser.add_argument("--local_rank", type=int, default=-1, metavar='N', help='Local process rank')
 
     # Optimizers, schedulers
-    parser.add_argument("--batch_size", type=int, default=2)
+    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--num_epochs", type=int, default=75)
     parser.add_argument("--optimizer", type=str, default='adam', choices={'adam', 'adamw', 'sgd'})
     parser.add_argument("--lr", type=float, default=2e-5)

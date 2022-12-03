@@ -137,6 +137,14 @@ examp2 = torch.tensor([[0, 0, 1, 0, 0],
 print(dcm_utils.get_argmax_batch(examp1))
 print(dcm_utils.get_argmax_batch(examp2))
 
+# test the summarizing functions
+ea_dict, er_dict = dcm_utils.separate_by_group(
+    [1, 2, 1, 2, 3, 4],
+    [1, 2, 1, 2, 1, 2],
+    ['a', 'a', 'b', 'b', 'c', 'c']
+)
+dcm_utils.summarize_ar_dict(ea_dict, er_dict)
+
 aug_flag = input("Type 'y' to augment, any other non-empty string to skip. Press enter to animate ...")
 
 # test manipulating DICOM files

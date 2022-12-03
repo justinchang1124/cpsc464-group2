@@ -11,7 +11,20 @@ import keras
 # project code
 import dcm_utils
 import read_metadata
-from labels_presentation import *
+
+
+def dcm_images_to_np3d(dcm_images):
+    n = len(dcm_images)
+    if n < 1:
+        raise ValueError("A positive number of images is required!")
+    shape = dcm_images[0].shape
+    result = np.empty((n, *shape))  # splat
+    for i in range(n):
+        if dcm_images[i].shape != shape:
+            raise ValueError("Not all images have the expected shape!")
+        result[i] = dcm_images[i]
+    return result
+
 
 abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
 data_path = 'image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
@@ -119,10 +132,16 @@ class storage_data_generator(Sequence):
         i1 = idx * self.batch_size
         i2 = (idx + 1) * self.batch_size
 
-        x_files = self.abs_dcm_files[i1:i2]
-        x_images = dcm_utils.open_dcm_images(x_files)
-        x_array = dcm_utils.dcm_images_to_np3d(x_images)
-        batch_x = x_array  # dcm_utils.unit_dcm_image(x_array)
+        bat_abs_dcm_files = self.abs_dcm_files[i1:i2]
+        x_images = []
+        for abs_dcm_file in bat_abs_dcm_files:
+            dcm_data = dcm_utils.open_dcm_with_image(abs_dcm_file)
+            px_array = dcm_data.pixel_array
+            clamp_px = dcm_utils.perc_clamp_dcm_image(px_array, 1, 99)
+            # normalization tried; standardization also possible
+            fin_px = dcm_utils.normalize_dcm_image(clamp_px)
+            x_images.append(fin_px)
+        batch_x = dcm_images_to_np3d(x_images)
 
         y_labels = self.labels[i1:i2]
         batch_y = np.array(y_labels)
@@ -194,9 +213,9 @@ scale_pred = []
 for pred in prediction:
     scale_pred.append(np.argmax(pred))
 
-ea_dict, er_dict = separate_by_group(scale_pred, y_test, z_test)
+ea_dict, er_dict = dcm_utils.separate_by_group(scale_pred, y_test, z_test)
 print(ea_dict, er_dict)
-summarize_ar_dict(ea_dict, er_dict)
+dcm_utils.summarize_ar_dict(ea_dict, er_dict)
 
 
 

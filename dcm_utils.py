@@ -364,7 +364,7 @@ def summarize_ar_dict(a_dict, r_dict):
                 n_sub += 1
 
         total = len(d_list)
-        print("{} accuracy rate: {}=, {}+, {}-, total {}/{}".format(grp_key, n_cor, n_sup, n_sub, n_cor / total))
+        print("{} accuracy rate: {}=, {}+, {}-, total {}/{}".format(grp_key, n_cor, n_sup, n_sub, n_cor, total))
         avg_re = sum(r_list) / total
         avg_ai = sum(a_list) / total
         print("{} average real vs AI: {} vs {}".format(grp_key, avg_re, avg_ai))
@@ -373,13 +373,14 @@ def summarize_ar_dict(a_dict, r_dict):
         print("{} difference: Variance = {}, Mean Absolute Difference = {}".format(grp_key, df_var, df_mad))
 
 
-# example usage
-# ea_dict, er_dict = separate_by_group([1, 2, 1, 2, 3, 4], [1, 2, 1, 2, 1, 2], ['a', 'a', 'b', 'b', 'c', 'c'])
-# print(ea_dict, er_dict)
-# summarize_ar_dict(ea_dict, er_dict)
-
-
 def write_labels(labels, filename):
+    """
+    Writes labels as a comma-separated string.
+
+    :param labels: a list
+    :param filename: the file to which this will be written
+    :return: void
+    """
     text_file = open(filename, "w")
     text_file.write(','.join([str(lab) for lab in labels]))
     text_file.close()
