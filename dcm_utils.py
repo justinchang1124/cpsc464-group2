@@ -3,6 +3,8 @@ import pydicom as dicom
 import glob
 import cv2
 import numpy as np
+import torch
+import torchio
 
 
 def validate_abs_dir_path(abs_dir_path):
@@ -25,11 +27,7 @@ def prepend_abs(abs_dir_path, rel_paths):
     :return: a list of the form abs_dir_path/rel_paths
     """
     validate_abs_dir_path(abs_dir_path)
-    n = len(rel_paths)
-    result = [None] * n
-    for i in range(n):
-        result[i] = os.path.join(abs_dir_path, rel_paths[i])
-    return result
+    return [os.path.join(abs_dir_path, rel_path) for rel_path in rel_paths]
 
 
 def dcm_dir_list(abs_dir_path, ret_abs=False):
@@ -204,25 +202,51 @@ def downscale_dcm(abs_dcm_file, shape):
     return True
 
 
+def dcm_image_to_tensor4d(dcm_image):
+    """
+    Converts a dcm_image into a 4D Torch tensor.
+
+    :param dcm_image: see validate_norm_ndarray(dcm_image, 2)
+    :return: a four-dimensional Torch tensor (channels = 1, z = 1, x, y)
+    """
+    validate_norm_ndarray(dcm_image, 2)
+    result = np.empty((1, *dcm_image.shape, 1))
+    result[0, :, :, 0] = dcm_image
+    return torch.from_numpy(result).float()
+
+
+def tensor4d_to_dcm_image(tensor4d):
+    """
+    Converts a 4D Torch tensor into a dcm_image.
+
+    :param tensor4d: a four-dimensional Torch tensor (channels = 1, x, y, z = 1)
+    :return: see validate_norm_ndarray(dcm_image, 2)
+    """
+    if not torch.is_tensor(tensor4d):
+        raise ValueError("Expected a Torch tensor!")
+    e_size = tensor4d.size()
+    if e_size[0] != 1 or e_size[3] != 1:
+        raise ValueError("Expected 4D tensor to have channels = 1, z = 1!")
+    result = tensor4d.numpy()
+    validate_norm_ndarray(result, 4)
+    return result[0, :, :, 0]
+
+
+augmenter = torchio.transforms.Compose([
+    torchio.transforms.RandomFlip(axes=0, flip_probability=0.5),
+    torchio.transforms.RandomFlip(axes=1, flip_probability=0.5),
+    torchio.transforms.RandomFlip(axes=2, flip_probability=0.5),
+    torchio.transforms.RandomAffine(
+        scales=0.10,
+        degrees=10,
+        translation=0,
+        p=0.65
+    )
+])
+
+
+def augment_tensor4d(tensor4d):
+    return augmenter(tensor4d)
+
+
 print("IMPORTED: dcm_utils")
-
-# opens a specific DCM image
-# note: if the percentile range contains [0, 100], do nothing
-# def open_dcm_image(abs_dcm_file, perc1=1, perc2=99):
-#     px_array = open_dcm(abs_dcm_file).pixel_array
-#     validate_norm_ndarray(px_array, 2)
-#     return perc_clamp_dcm_image(px_array, perc1, perc2)
-
-
-# opens a set of specific DCM images
-# def images_from_dcm_files(abs_dcm_files):
-#     n = len(abs_dcm_files)
-#     result = [None] * n
-#     for i in range(n):
-#         result[i] = open_dcm_with_image(abs_dcm_files[i]).pixel_array
-#     return result
-
-
-# opens all DCM images in a folder
-# def open_dcm_folder(abs_dir_path):
-#     return images_from_dcm_files(dcm_dir_list(abs_dir_path, ret_abs=True))

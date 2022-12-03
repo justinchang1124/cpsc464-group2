@@ -18,6 +18,7 @@ conda install -c conda-forge matplotlib
 conda install opencv
 conda install scikit-learn
 pip install pydicom
+conda install torchio
 
 # Step 1: Download the TCIA manifest (a copy is included)
 # Step 2: Set the target of the NBIA data retriever: 'C:\Users\justin\PycharmProjects\cpsc464-group2\image_data'

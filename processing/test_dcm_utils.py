@@ -123,6 +123,8 @@ print(dcm_utils.normalize_dcm_image(valid1))
 # test standardize_dcm_image
 print(dcm_utils.standardize_dcm_image(valid1))
 
+aug_flag = input("Type 'y' to augment, any other non-empty string to skip. Press enter to animate ...")
+
 # test manipulating DICOM files
 n_dcm_files = len(dcm_files)
 
@@ -144,6 +146,10 @@ for dcm_study in dcm_studies:
         dcm_data = dcm_utils.open_dcm_with_image(abs_study_files[i])
         img_clamp = dcm_utils.perc_clamp_dcm_image(dcm_data.pixel_array, 1, 99)
         img_norm = dcm_utils.normalize_dcm_image(img_clamp)
+        if aug_flag == "y":
+            img_tensor = dcm_utils.dcm_image_to_tensor4d(img_norm)
+            img_aug = dcm_utils.augment_tensor4d(img_tensor)
+            img_norm = dcm_utils.tensor4d_to_dcm_image(img_aug)
         dcm_images[i] = img_norm * 255.0
     animate_dcm_images(dcm_images, False)
 
