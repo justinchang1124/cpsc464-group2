@@ -44,8 +44,8 @@ def id_of_patient_dir(patient_dir):
     return int(id_as_match.group(0))
 
 
-abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
-data_path = 'image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
+abs_proj_path = '/'
+data_path = '../image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
 abs_data_path = os.path.join(abs_proj_path, data_path)
 dcm_files = dcm_utils.dcm_dir_list(abs_data_path)
 n_dcm_files = len(dcm_files)
@@ -54,8 +54,8 @@ dcm_files_data = []
 for file in dcm_files:
     dcm_files_data.append(file.split('\\'))
 
-start_slices_path = 'resources/start_slices.txt'
-end_slices_path = 'resources/end_slices.txt'
+start_slices_path = '../resources/start_slices.txt'
+end_slices_path = '../resources/end_slices.txt'
 abs_start_slices_path = '{}/{}'.format(abs_proj_path, start_slices_path)
 abs_end_slices_path = '{}/{}'.format(abs_proj_path, end_slices_path)
 start_slices = np.genfromtxt(abs_start_slices_path, dtype=int)

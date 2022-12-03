@@ -2,8 +2,8 @@ import dcm_utils
 import numpy as np
 import os
 
-abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
-data_path = 'image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
+abs_proj_path = '/'
+data_path = '../image_data/manifest-1654812109500/Duke-Breast-Cancer-MRI'
 abs_data_path = os.path.join(abs_proj_path, data_path)
 abs_dcm_files = dcm_utils.dcm_dir_list(abs_data_path, ret_abs=True)
 n_dcm_files = len(abs_dcm_files)
