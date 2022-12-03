@@ -217,12 +217,12 @@ def dcm_image_to_tensor4d(dcm_image):
     Converts a dcm_image into a 4D Torch tensor.
 
     :param dcm_image: see validate_norm_ndarray(dcm_image, 2)
-    :return: a four-dimensional Torch tensor (channels = 1, z = 1, x, y)
+    :return: a four-dimensional Torch tensor (channels = 1, x, y, z = 1)
     """
     validate_norm_ndarray(dcm_image, 2)
     result = np.empty((1, *dcm_image.shape, 1))
     result[0, :, :, 0] = dcm_image
-    return create_tensor(dcm_image)
+    return create_tensor(result)
 
 
 def tensor4d_to_dcm_image(tensor4d):
