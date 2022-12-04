@@ -52,6 +52,10 @@ https://user-images.githubusercontent.com/39058024/196014602-3983c1c4-0622-42a1-
 
 https://user-images.githubusercontent.com/39058024/196014603-aabb0b38-e9df-4482-8379-211c7d9a6704.mp4
 
+The example below shows what augmented images may look like:
+
+https://user-images.githubusercontent.com/39058024/205505004-d3e53fb9-f7ae-45d5-9607-5249b086e8fa.mp4
+
 <a name="file-breakdown"/>
 
 # File Breakdown
