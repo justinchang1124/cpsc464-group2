@@ -34,6 +34,7 @@ conda install -c conda-forge matplotlib
 conda install opencv
 conda install scikit-learn
 pip install pydicom
+conda install torchio
 ```
 
 <a name="usage"/>
@@ -59,6 +60,18 @@ https://user-images.githubusercontent.com/39058024/205505004-d3e53fb9-f7ae-45d5-
 <a name="file-breakdown"/>
 
 # File Breakdown
+
+Our contributions center on the following files:
+
+1. **dcm_utils.py:** Helper functions for manipulating images in the DICOM format.
+2. **read_metadata.py:** Helper functions for reading in metadata.
+3. **train.py:** Our implementation of the NYU algorithm with training.
+4. **main.py:** Our three-layer convolutional neural network.
+5. **processing/remove_invalid.py:** Removes segmentation images.
+6. **processing/filtering.py:** Filters images by start / stop slice.
+7. **processing/downscale.py:** Downscales images to the lowest common resolution.
+8. **processing/test_dcm_utils.py:** Tests for dcm_utils.py
+9. **processing/test_architecture.py:** Testing our implementation of the NYU algorithm.
 
 <a name="acknowledgements"/>
 
