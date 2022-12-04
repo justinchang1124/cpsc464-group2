@@ -104,9 +104,12 @@ class MyDataset(Dataset):
 
     def __getitem__(self, idx):
         dcm_file = self.abs_dcm_files[idx]
+        t0 = time.time()
         dcm_data = dcm_utils.open_dcm_with_image(dcm_file)
         img_clamp = dcm_utils.perc_clamp_dcm_image(dcm_data.pixel_array, 1, 99)
         img_norm = dcm_utils.normalize_dcm_image(img_clamp)
+        t1 = time.time()
+        print(t1 - t0)
         img_tensor = dcm_utils.dcm_image_to_tensor4d(img_norm)
         img_aug = dcm_utils.augment_tensor4d(img_tensor)
         return idx, img_aug, dcm_utils.label_to_one_hot(self.labels[idx]), self.groups[idx]
@@ -267,15 +270,15 @@ def train(parameters: dict, callbacks: list = None):
 
                     output_labels = dcm_utils.get_argmax_batch(output)
                     target_labels = dcm_utils.get_argmax_batch(label_batch)
+                    diff_labels = dcm_utils.diff_lists(output_labels, target_labels)
 
-                    correct_epoch += dcm_utils.num_correct(output_labels, target_labels)
+                    correct_epoch += diff_labels.count(0)
                     total_epoch += len(output_labels)
 
-                    if i_batch % 100 == 0:
-                        print()
-                        print("Correct this Epoch: {}".format(correct_epoch))
-                        print("Total this Epoch: {}".format(total_epoch))
-                        print("Accuracy Rate: {}".format(correct_epoch / total_epoch))
+                    print()
+                    print("Correct this Epoch: {}".format(correct_epoch))
+                    print("Total this Epoch: {}".format(total_epoch))
+                    print("Accuracy Rate: {}".format(correct_epoch / total_epoch))
 
                     for ind_n, ind in enumerate(indices):
                         training_labels[ind] = label_batch[ind_n]
@@ -287,7 +290,9 @@ def train(parameters: dict, callbacks: list = None):
                         for param in model.parameters():
                             param.grad = None
 
-                        minibatch_loss = loss_train(output, label_batch)
+                        diff_multiplier = 1
+                        # diff_multiplier += sum(map(abs, diff_labels))
+                        minibatch_loss = loss_train(output, label_batch) * diff_multiplier
                         print("Loss:", minibatch_loss)
 
                         # Backprop

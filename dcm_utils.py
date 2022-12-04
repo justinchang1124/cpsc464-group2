@@ -305,12 +305,15 @@ def get_argmax_batch(output):
     return result
 
 
-def num_correct(output_labels, target_labels):
-    count = 0
-    for i in range(len(output_labels)):
-        if output_labels[i] == target_labels[i]:
-            count += 1
-    return count
+def diff_lists(list_a, list_b):
+    """
+    Returns pairwise difference between list_a, list_b.
+
+    :param list_a: a list of numbers
+    :param list_b: a list of numbers
+    :return: pairwise difference between list_a, list_b
+    """
+    return [a_i - b_i for a_i, b_i in zip(list_a, list_b)]
 
 
 # dict.get() but return [] if not found
@@ -351,7 +354,7 @@ def summarize_ar_dict(a_dict, r_dict):
     for grp_key in a_dict.keys():
         r_list = r_dict[grp_key]
         a_list = a_dict[grp_key]
-        d_list = [a_i - b_i for a_i, b_i in zip(a_list, r_list)]  # differences list
+        d_list = diff_lists(a_list, r_list)
         n_sup = 0
         n_sub = 0
         n_cor = 0

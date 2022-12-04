@@ -125,7 +125,8 @@ print(dcm_utils.normalize_dcm_image(valid1))
 print(dcm_utils.standardize_dcm_image(valid1))
 
 # test label_to_one_hot
-print(dcm_utils.label_to_one_hot(3))
+for i in range(5):
+    print(dcm_utils.label_to_one_hot(i))
 
 # test get_argmax_batch
 examp1 = torch.tensor([[-3.6933, -0.9389,  0.3308, -2.0394, -2.4012],
@@ -133,6 +134,11 @@ examp1 = torch.tensor([[-3.6933, -0.9389,  0.3308, -2.0394, -2.4012],
 
 examp2 = torch.tensor([[0, 0, 1, 0, 0],
                        [0, 0, 0, 1, 0]])
+
+
+examp_loss = torch.nn.modules.loss.CrossEntropyLoss()
+print(examp_loss(examp1.float(), examp2.float()))
+
 
 print(dcm_utils.get_argmax_batch(examp1))
 print(dcm_utils.get_argmax_batch(examp2))
