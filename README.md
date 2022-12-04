@@ -72,6 +72,7 @@ Our contributions center on the following files:
 7. **processing/downscale.py:** Downscales images to the lowest common resolution.
 8. **processing/test_dcm_utils.py:** Tests for dcm_utils.py
 9. **processing/test_architecture.py:** Testing our implementation of the NYU algorithm.
+10. **aliases.sh:** Bash commands for installing the appropriate dependencies.
 
 <a name="acknowledgements"/>
 
