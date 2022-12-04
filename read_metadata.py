@@ -23,7 +23,7 @@ for i in range(n):
 
 
 def id_to_label(id):
-    return id_to_lab[id]
+    return min(max(id_to_lab[id], 0), 4)  # clamp to [0, 1, 2, 3, 4]
 
 
 def id_to_group(id):

@@ -22,20 +22,12 @@ from utilities.callbacks import History, RedundantCallback, resolve_callbacks, E
 from utilities.warmup import GradualWarmupScheduler
 from utilities.utils import boolean_string, save_checkpoint
 from networks import losses
-
-
-# loss = nn.CrossEntropyLoss()
-# predict = torch.tensor([[100, 100, 100, 100, 1000]]).float()
-# target = torch.tensor([[0, 0, 0, 0, 1]]).float()
-# x = loss(predict, target)
-
 from sklearn import model_selection
 
 # project code
 from architecture import create_model
 import dcm_utils
 import read_metadata
-import random
 from datetime import datetime
 
 abs_proj_path = 'C:/Users/justin/PycharmProjects/cpsc464-group2'
@@ -58,10 +50,6 @@ groups = [read_metadata.id_to_group(id) for id in global_ids]
 abs_dcm_files = dcm_utils.prepend_abs(abs_data_path, dcm_files)
 n_classes = len(set(labels))
 
-for i in range(n_dcm_files):
-    if labels[i] < 0:
-        labels[i] = 0
-
 X_train_files = []
 X_test_files = []
 y_train = []
@@ -69,27 +57,40 @@ y_test = []
 z_train = []
 z_test = []
 
-grpmap_train = read_metadata.empty_group_counter()
-grpmap_test = read_metadata.empty_group_counter()
+augment_groups = True
+use_distance = False
 
 iter_order = list(range(n_dcm_files))
 random.shuffle(iter_order)
+iter_order = iter_order[:1000]
+
+group_total = read_metadata.empty_group_counter()
+for i in iter_order:
+    group_total[groups[i]] += 1
+group_upper = max(group_total.values())
+
+grpmap_train = read_metadata.empty_group_counter()
+grpmap_test = read_metadata.empty_group_counter()
 
 for i in iter_order:
-    # get 400 of each group in training, 100 of each group in testing
-    if grpmap_train[groups[i]] <= 200:
-        X_train_files.append(abs_dcm_files[i])
-        y_train.append(labels[i])
-        z_train.append(groups[i])
+    train_grp = grpmap_train[groups[i]]
+    test_grp = grpmap_test[groups[i]]
+    total_grp = group_total[groups[i]]
+    aug_factor = 1
+    if augment_groups:
+        aug_factor = int(group_upper / total_grp)
+    if train_grp <= total_grp * 0.8:
+        for j in range(aug_factor):
+            X_train_files.append(abs_dcm_files[i])
+            y_train.append(labels[i])
+            z_train.append(groups[i])
         grpmap_train[groups[i]] += 1
-    elif grpmap_test[groups[i]] <= 50:
-        X_test_files.append(abs_dcm_files[i])
-        y_test.append(labels[i])
-        z_test.append(groups[i])
+    elif test_grp <= total_grp * 0.2:
+        for j in range(aug_factor):
+            X_test_files.append(abs_dcm_files[i])
+            y_test.append(labels[i])
+            z_test.append(groups[i])
         grpmap_test[groups[i]] += 1
-    else:
-        continue
-
 
 class MyDataset(Dataset):
 
@@ -104,12 +105,9 @@ class MyDataset(Dataset):
 
     def __getitem__(self, idx):
         dcm_file = self.abs_dcm_files[idx]
-        t0 = time.time()
         dcm_data = dcm_utils.open_dcm_with_image(dcm_file)
         img_clamp = dcm_utils.perc_clamp_dcm_image(dcm_data.pixel_array, 1, 99)
         img_norm = dcm_utils.normalize_dcm_image(img_clamp)
-        t1 = time.time()
-        print(t1 - t0)
         img_tensor = dcm_utils.dcm_image_to_tensor4d(img_norm)
         img_aug = dcm_utils.augment_tensor4d(img_tensor)
         return idx, img_aug, dcm_utils.label_to_one_hot(self.labels[idx]), self.groups[idx]
@@ -291,7 +289,8 @@ def train(parameters: dict, callbacks: list = None):
                             param.grad = None
 
                         diff_multiplier = 1
-                        # diff_multiplier += sum(map(abs, diff_labels))
+                        if use_distance:
+                            diff_multiplier += sum(map(abs, diff_labels))
                         minibatch_loss = loss_train(output, label_batch) * diff_multiplier
                         print("Loss:", minibatch_loss)
 

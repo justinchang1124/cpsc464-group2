@@ -44,4 +44,28 @@ asian difference: Variance = 0.25, Mean Absolute Difference = 1.5
 
 47 percent accuracy, also it seems like the MAD reduced???
 
-AUGMENT, NO DISTANCE, 3 EPOCHS
+AUGMENT, NO DISTANCE, 2 EPOCHS
+
+black accuracy rate: 48=, 27+, 31-, total 48/106
+black average real vs AI: 2.1320754716981134 vs 2.047169811320755
+black difference: Variance = 1.1909042363830546, Mean Absolute Difference = 0.7452830188679245
+N/A accuracy rate: 109=, 5+, 0-, total 109/114
+N/A average real vs AI: 1.8333333333333333 vs 1.894736842105263
+N/A difference: Variance = 0.09272083718067102, Mean Absolute Difference = 0.06140350877192982
+asian accuracy rate: 57=, 29+, 0-, total 57/86
+asian average real vs AI: 1.5 vs 1.8488372093023255
+asian difference: Variance = 0.2504056246619795, Mean Absolute Difference = 0.3488372093023256
+amer indian accuracy rate: 18=, 0+, 63-, total 18/81
+amer indian average real vs AI: 4.0 vs 2.5555555555555554
+amer indian difference: Variance = 0.691358024691358, Mean Absolute Difference = 1.4444444444444444
+white accuracy rate: 55=, 44+, 30-, total 55/129
+white average real vs AI: 1.8372093023255813 vs 1.9767441860465116
+white difference: Variance = 0.9882819542094825, Mean Absolute Difference = 0.7131782945736435
+multi accuracy rate: 64=, 0+, 0-, total 64/64
+multi average real vs AI: 3.0 vs 3.0
+multi difference: Variance = 0.0, Mean Absolute Difference = 0.0
+hispanic accuracy rate: 58=, 0+, 58-, total 58/116
+hispanic average real vs AI: 2.5 vs 2.0
+hispanic difference: Variance = 0.25, Mean Absolute Difference = 0.5
+
+58.7% accuracy
