@@ -393,9 +393,11 @@ def summarize_ar_dict(a_dict, r_dict):
     if grp_keys != r_dict.keys():
         raise ValueError("Different keys across dicts!")
 
-    for grp_key in grp_keys:
+    print("--- START SUMMARY ---")
+    for grp_key in sorted(grp_keys):
         print("GROUP: {}".format(grp_key))
         summarize_group(a_dict[grp_key], r_dict[grp_key])
+    print("---- END SUMMARY ----")
 
 
 def write_labels(labels, filename):
@@ -411,16 +413,23 @@ def write_labels(labels, filename):
     text_file.close()
 
 
-def read_labels(filename):
+def read_labels(filename, to_int=False):
     """
     Opens a file and reads all labels inside.
 
     :param filename: the file from which labels will be read
-    :return: a list of strings
+    :param to_int: assumed to be a bool, whether we cast to int
+    :return: a list of ints
     """
     text_file = open(filename, "r")
     labels = []
     for line in text_file:
         labels += line.split(',')
+    if to_int:
+        for i in range(len(labels)):
+            labels[i] = int(labels[i])
     text_file.close()
     return labels
+
+
+

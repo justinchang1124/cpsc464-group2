@@ -157,8 +157,31 @@ er_dict = dcm_utils.separate_by_label(
 dcm_utils.summarize_ar_dict(ea_dict, er_dict)
 
 # test the reading of labels
-filename = os.path.join(abs_proj_path, "logs/preds_1_03_12_2022-20_21_48.txt")
-print(dcm_utils.read_labels(filename))
+list_of_logs = [
+    '1_03_12_2022-20_21_48.txt',
+    '1_03_12_2022-20_56_23.txt',
+    '1_03_12_2022-22_29_36.txt',
+    '2_03_12_2022-20_33_04.txt',
+    '2_03_12_2022-21_06_40.txt',
+    '2_03_12_2022-23_49_07.txt',
+    '3_03_12_2022-20_44_07.txt',
+    '3_03_12_2022-21_17_13.txt'
+]
+
+for log_file in list_of_logs:
+    preds_file = os.path.join(abs_proj_path, "logs", "preds_{}".format(log_file))
+    trues_file = os.path.join(abs_proj_path, "logs", "trues_{}".format(log_file))
+    ztest_file = os.path.join(abs_proj_path, "logs", "ztest_{}".format(log_file))
+    preds = dcm_utils.read_labels(preds_file, True)
+    trues = dcm_utils.read_labels(trues_file, True)
+    ztest = dcm_utils.read_labels(ztest_file)
+    overall_diff = dcm_utils.diff_lists(preds, trues)
+    total_cor = overall_diff.count(0)
+    total_num = len(overall_diff)
+    print("OVERALL ACCURACY: {}/{} = {}".format(total_cor, total_num, total_cor / total_num))
+    ea_dict = dcm_utils.separate_by_label(preds, ztest)
+    er_dict = dcm_utils.separate_by_label(trues, ztest)
+    dcm_utils.summarize_ar_dict(ea_dict, er_dict)
 
 aug_flag = input("Type 'y' to augment, any other non-empty string to skip. Press enter to animate ...")
 
