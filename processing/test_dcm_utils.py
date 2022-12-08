@@ -144,12 +144,21 @@ print(dcm_utils.get_argmax_batch(examp1))
 print(dcm_utils.get_argmax_batch(examp2))
 
 # test the summarizing functions
-ea_dict, er_dict = dcm_utils.separate_by_group(
+ea_dict = dcm_utils.separate_by_label(
     [1, 2, 1, 2, 3, 4],
+    ['a', 'a', 'b', 'b', 'c', 'c']
+)
+
+er_dict = dcm_utils.separate_by_label(
     [1, 2, 1, 2, 1, 2],
     ['a', 'a', 'b', 'b', 'c', 'c']
 )
+
 dcm_utils.summarize_ar_dict(ea_dict, er_dict)
+
+# test the reading of labels
+filename = os.path.join(abs_proj_path, "logs/preds_1_03_12_2022-20_21_48.txt")
+print(dcm_utils.read_labels(filename))
 
 aug_flag = input("Type 'y' to augment, any other non-empty string to skip. Press enter to animate ...")
 

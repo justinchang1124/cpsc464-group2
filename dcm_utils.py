@@ -316,64 +316,86 @@ def diff_lists(list_a, list_b):
     return [a_i - b_i for a_i, b_i in zip(list_a, list_b)]
 
 
-# dict.get() but return [] if not found
 def key_get_list(examp_dict, examp_key):
+    """
+    dict.get() but return [] if not found
+
+    :param examp_dict: a dictionary
+    :param examp_key: a key for examp_dict
+    :return: examp_dict.get(examp_key), return [] if not found
+    """
     result = examp_dict.get(examp_key)
     if result is None:
         return []
     return result
 
 
-# separates z_pred, z_true by grp_keys
-def separate_by_group(z_pred, z_true, grp_keys):
-    n_pred = len(z_pred)
-    if n_pred != len(z_true):
-        raise ValueError("Length of predictions does not equal length of truths!")
-    if n_pred != len(grp_keys):
-        raise ValueError("Length of predictions does not equal number of keys!")
+def separate_by_label(values, labels):
+    """
+    Separates values by labels.
 
-    a_dict = {}  # a_dict[group] is the actual predictions within that group
-    r_dict = {}  # r_dict[group] is the real values within that group
+    :param values: a list / tuple of values
+    :param labels: a list / tuple of labels
+    :return: dict results where results[label] is all values with that label
+    """
+    n = len(values)
+    if n != len(labels):
+        raise ValueError("Length of values does not equal length of labels!")
+    result = {}
 
-    for i in range(n_pred):
-        grp_key = grp_keys[i]
-        a_list = key_get_list(a_dict, grp_key)
-        r_list = key_get_list(r_dict, grp_key)
+    for i in range(n):
+        label = labels[i]
+        label_list = key_get_list(result, label)
+        label_list.append(values[i])
+        result[label] = label_list
 
-        a_list.append(z_pred[i])
-        r_list.append(z_true[i])
-
-        a_dict[grp_key] = a_list
-        r_dict[grp_key] = r_list
-
-    return a_dict, r_dict
+    return result
 
 
-# summarizes the result of separate_by_group
+def summarize_group(a_list, r_list):
+    """
+    Prints a summary for an AI list vs a real list.
+
+    :param a_list: a list of AI (predicted) groups
+    :param r_list: a list of real (true) groups
+    :return: void
+    """
+    d_list = diff_lists(a_list, r_list)
+    n_sup = 0
+    n_sub = 0
+    n_cor = 0
+    for diff in d_list:
+        if diff == 0:
+            n_cor += 1
+        elif diff > 0:
+            n_sup += 1
+        else:
+            n_sub += 1
+
+    total = len(d_list)
+    print("\tAccuracy Rate: {}+, {}-, total {}/{} = {}".format(n_sup, n_sub, n_cor, total, n_cor / total))
+    avg_re = sum(r_list) / total
+    avg_ai = sum(a_list) / total
+    print("\tMean True vs AI: {} vs {}".format(avg_re, avg_ai))
+    print("\tVAD = {}".format(np.var(d_list)))
+    print("\tMAD = {}".format(sum(map(abs, d_list)) / total))
+
+
 def summarize_ar_dict(a_dict, r_dict):
-    for grp_key in a_dict.keys():
-        r_list = r_dict[grp_key]
-        a_list = a_dict[grp_key]
-        d_list = diff_lists(a_list, r_list)
-        n_sup = 0
-        n_sub = 0
-        n_cor = 0
-        for diff in d_list:
-            if diff == 0:
-                n_cor += 1
-            elif diff > 0:
-                n_sup += 1
-            else:
-                n_sub += 1
+    """
+    Prints a summary for AI vs real groups.
 
-        total = len(d_list)
-        print("{} accuracy rate: {}=, {}+, {}-, total {}/{}".format(grp_key, n_cor, n_sup, n_sub, n_cor, total))
-        avg_re = sum(r_list) / total
-        avg_ai = sum(a_list) / total
-        print("{} average real vs AI: {} vs {}".format(grp_key, avg_re, avg_ai))
-        df_var = np.var(d_list)
-        df_mad = sum(map(abs, d_list)) / total
-        print("{} difference: Variance = {}, Mean Absolute Difference = {}".format(grp_key, df_var, df_mad))
+    :param a_dict: a dictionary of AI (predicted) groups
+    :param r_dict: a dictionary of real (true) groups
+    :return: void
+    """
+    grp_keys = a_dict.keys()
+    if grp_keys != r_dict.keys():
+        raise ValueError("Different keys across dicts!")
+
+    for grp_key in grp_keys:
+        print("GROUP: {}".format(grp_key))
+        summarize_group(a_dict[grp_key], r_dict[grp_key])
 
 
 def write_labels(labels, filename):
@@ -387,3 +409,18 @@ def write_labels(labels, filename):
     text_file = open(filename, "w")
     text_file.write(','.join([str(lab) for lab in labels]))
     text_file.close()
+
+
+def read_labels(filename):
+    """
+    Opens a file and reads all labels inside.
+
+    :param filename: the file from which labels will be read
+    :return: a list of strings
+    """
+    text_file = open(filename, "r")
+    labels = []
+    for line in text_file:
+        labels += line.split(',')
+    text_file.close()
+    return labels
