@@ -1,71 +1,112 @@
 NO AUGMENT NO DISTANCE 3 EPOCHS
 
-white accuracy rate: 67=, 36+, 34-, total 67/137
-white average real vs AI: 1.7518248175182483 vs 1.7153284671532847
-white difference: Variance = 0.7066972134903299, Mean Absolute Difference = 0.5766423357664233
-N/A accuracy rate: 1=, 1+, 1-, total 1/3
-N/A average real vs AI: 2.3333333333333335 vs 2.0
-N/A difference: Variance = 1.5555555555555556, Mean Absolute Difference = 1.0
-black accuracy rate: 20=, 11+, 15-, total 20/46
-black average real vs AI: 1.9565217391304348 vs 1.8043478260869565
-black difference: Variance = 0.9116257088846883, Mean Absolute Difference = 0.6739130434782609
-asian accuracy rate: 2=, 0+, 2-, total 2/4
-asian average real vs AI: 2.5 vs 1.25
-asian difference: Variance = 1.6875, Mean Absolute Difference = 1.25
-multi accuracy rate: 0=, 0+, 3-, total 0/3
-multi average real vs AI: 3.0 vs 2.0
-multi difference: Variance = 0.0, Mean Absolute Difference = 1.0
-hispanic accuracy rate: 2=, 0+, 0-, total 2/2
-hispanic average real vs AI: 2.0 vs 2.0
-hispanic difference: Variance = 0.0, Mean Absolute Difference = 0.0
-
-47 percent accuracy
+OVERALL ACCURACY: 88/195 = 0.4512820512820513
+--- START SUMMARY ---
+GROUP: N/A
+	Accuracy Rate: 1+, 1-, total 1/3 = 0.3333333333333333
+	Mean True vs AI: 2.0 vs 1.6666666666666667
+	VAD = 1.5555555555555554
+	MAD = 1.0
+GROUP: asian
+	Accuracy Rate: 2+, 1-, total 1/4 = 0.25
+	Mean True vs AI: 1.75 vs 2.0
+	VAD = 0.6875
+	MAD = 0.75
+GROUP: black
+	Accuracy Rate: 14+, 11-, total 21/46 = 0.45652173913043476
+	Mean True vs AI: 1.934782608695652 vs 1.9782608695652173
+	VAD = 0.7372400756143669
+	MAD = 0.6086956521739131
+GROUP: hispanic
+	Accuracy Rate: 0+, 2-, total 0/2 = 0.0
+	Mean True vs AI: 3.0 vs 2.0
+	VAD = 0.0
+	MAD = 1.0
+GROUP: multi
+	Accuracy Rate: 0+, 2-, total 1/3 = 0.3333333333333333
+	Mean True vs AI: 3.0 vs 2.3333333333333335
+	VAD = 0.22222222222222224
+	MAD = 0.6666666666666666
+GROUP: white
+	Accuracy Rate: 50+, 23-, total 64/137 = 0.46715328467153283
+	Mean True vs AI: 1.7737226277372262 vs 1.9416058394160585
+	VAD = 0.78203420533859
+	MAD = 0.6204379562043796
+---- END SUMMARY ----
 
 NO AUGMENT, DISTANCE, 3 EPOCHS
 
-black accuracy rate: 30=, 3+, 18-, total 30/51
-black average real vs AI: 1.9607843137254901 vs 1.5490196078431373
-black difference: Variance = 0.8696655132641291, Mean Absolute Difference = 0.6078431372549019
-white accuracy rate: 68=, 14+, 51-, total 68/133
-white average real vs AI: 1.7593984962406015 vs 1.3383458646616542
-white difference: Variance = 0.7550455085081125, Mean Absolute Difference = 0.631578947368421
-N/A accuracy rate: 2=, 1+, 2-, total 2/5
-N/A average real vs AI: 1.6 vs 1.4
-N/A difference: Variance = 0.56, Mean Absolute Difference = 0.6
-hispanic accuracy rate: 1=, 0+, 1-, total 1/2
-hispanic average real vs AI: 2.0 vs 1.0
-hispanic difference: Variance = 1.0, Mean Absolute Difference = 1.0
-multi accuracy rate: 1=, 0+, 1-, total 1/2
-multi average real vs AI: 1.5 vs 1.0
-multi difference: Variance = 0.25, Mean Absolute Difference = 0.5
-asian accuracy rate: 0=, 0+, 2-, total 0/2
-asian average real vs AI: 2.5 vs 1.0
-asian difference: Variance = 0.25, Mean Absolute Difference = 1.5
-
-47 percent accuracy, also it seems like the MAD reduced???
+OVERALL ACCURACY: 102/195 = 0.5230769230769231
+--- START SUMMARY ---
+GROUP: N/A
+	Accuracy Rate: 0+, 5-, total 0/5 = 0.0
+	Mean True vs AI: 2.4 vs 1.0
+	VAD = 0.24
+	MAD = 1.4
+GROUP: asian
+	Accuracy Rate: 1+, 1-, total 0/2 = 0.0
+	Mean True vs AI: 2.0 vs 2.0
+	VAD = 1.0
+	MAD = 1.0
+GROUP: black
+	Accuracy Rate: 7+, 19-, total 25/51 = 0.49019607843137253
+	Mean True vs AI: 1.7450980392156863 vs 1.392156862745098
+	VAD = 0.7773933102652826
+	MAD = 0.6274509803921569
+GROUP: hispanic
+	Accuracy Rate: 0+, 1-, total 1/2 = 0.5
+	Mean True vs AI: 1.5 vs 1.0
+	VAD = 0.25
+	MAD = 0.5
+GROUP: multi
+	Accuracy Rate: 0+, 1-, total 1/2 = 0.5
+	Mean True vs AI: 2.0 vs 1.5
+	VAD = 0.25
+	MAD = 0.5
+GROUP: white
+	Accuracy Rate: 10+, 48-, total 75/133 = 0.5639097744360902
+	Mean True vs AI: 1.8195488721804511 vs 1.3909774436090225
+	VAD = 0.78625134264232
+	MAD = 0.6090225563909775
+---- END SUMMARY ----
 
 AUGMENT, NO DISTANCE, 2 EPOCHS
 
-black accuracy rate: 48=, 27+, 31-, total 48/106
-black average real vs AI: 2.1320754716981134 vs 2.047169811320755
-black difference: Variance = 1.1909042363830546, Mean Absolute Difference = 0.7452830188679245
-N/A accuracy rate: 109=, 5+, 0-, total 109/114
-N/A average real vs AI: 1.8333333333333333 vs 1.894736842105263
-N/A difference: Variance = 0.09272083718067102, Mean Absolute Difference = 0.06140350877192982
-asian accuracy rate: 57=, 29+, 0-, total 57/86
-asian average real vs AI: 1.5 vs 1.8488372093023255
-asian difference: Variance = 0.2504056246619795, Mean Absolute Difference = 0.3488372093023256
-amer indian accuracy rate: 18=, 0+, 63-, total 18/81
-amer indian average real vs AI: 4.0 vs 2.5555555555555554
-amer indian difference: Variance = 0.691358024691358, Mean Absolute Difference = 1.4444444444444444
-white accuracy rate: 55=, 44+, 30-, total 55/129
-white average real vs AI: 1.8372093023255813 vs 1.9767441860465116
-white difference: Variance = 0.9882819542094825, Mean Absolute Difference = 0.7131782945736435
-multi accuracy rate: 64=, 0+, 0-, total 64/64
-multi average real vs AI: 3.0 vs 3.0
-multi difference: Variance = 0.0, Mean Absolute Difference = 0.0
-hispanic accuracy rate: 58=, 0+, 58-, total 58/116
-hispanic average real vs AI: 2.5 vs 2.0
-hispanic difference: Variance = 0.25, Mean Absolute Difference = 0.5
-
-58.7% accuracy
+OVERALL ACCURACY: 409/696 = 0.5876436781609196
+--- START SUMMARY ---
+GROUP: N/A
+	Accuracy Rate: 19+, 36-, total 59/114 = 0.5175438596491229
+	Mean True vs AI: 2.3947368421052633 vs 2.1228070175438596
+	VAD = 1.1278085564789166
+	MAD = 0.7105263157894737
+GROUP: amer indian
+	Accuracy Rate: 17+, 20-, total 44/81 = 0.5432098765432098
+	Mean True vs AI: 2.2098765432098766 vs 2.0987654320987654
+	VAD = 0.9629629629629628
+	MAD = 0.6296296296296297
+GROUP: asian
+	Accuracy Rate: 14+, 24-, total 48/86 = 0.5581395348837209
+	Mean True vs AI: 2.3488372093023258 vs 2.1511627906976742
+	VAD = 0.7865062195781504
+	MAD = 0.5697674418604651
+GROUP: black
+	Accuracy Rate: 7+, 33-, total 66/106 = 0.6226415094339622
+	Mean True vs AI: 2.490566037735849 vs 2.1792452830188678
+	VAD = 0.47855108579565686
+	MAD = 0.44339622641509435
+GROUP: hispanic
+	Accuracy Rate: 19+, 29-, total 68/116 = 0.5862068965517241
+	Mean True vs AI: 2.25 vs 2.0948275862068964
+	VAD = 0.8207491082045186
+	MAD = 0.5517241379310345
+GROUP: multi
+	Accuracy Rate: 11+, 17-, total 36/64 = 0.5625
+	Mean True vs AI: 2.265625 vs 2.109375
+	VAD = 0.7880859375
+	MAD = 0.5625
+GROUP: white
+	Accuracy Rate: 18+, 23-, total 88/129 = 0.6821705426356589
+	Mean True vs AI: 2.193798449612403 vs 2.108527131782946
+	VAD = 0.6516435310377983
+	MAD = 0.4263565891472868
+---- END SUMMARY ----
