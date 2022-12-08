@@ -44,8 +44,8 @@ for file in dcm_files:
 global_ids = []
 for i in range(n_dcm_files):
     global_ids.append(dcm_files_data[i][0])
-labels = [read_metadata.id_to_label(id) for id in global_ids]
-groups = [read_metadata.id_to_group(id) for id in global_ids]
+labels = [read_metadata.id_to_label(gid) for gid in global_ids]
+groups = [read_metadata.id_to_group(gid) for gid in global_ids]
 
 abs_dcm_files = dcm_utils.prepend_abs(abs_data_path, dcm_files)
 n_classes = len(set(labels))

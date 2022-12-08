@@ -69,7 +69,8 @@ for i in median_indices:
 global_ids = []
 for i in range(tn_dcm_files):
     global_ids.append(t_dcm_files_data[i][0])
-labels, groups = read_metadata.get_labels_groups(global_ids)
+labels = [read_metadata.id_to_label(gid) for gid in global_ids]
+groups = [read_metadata.id_to_group(gid) for gid in global_ids]
 abs_dcm_files = dcm_utils.prepend_abs(abs_data_path, dcm_files)
 n_classes = len(set(labels))
 
