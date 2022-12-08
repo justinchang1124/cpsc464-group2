@@ -34,6 +34,7 @@ conda install -c conda-forge matplotlib
 conda install opencv
 conda install scikit-learn
 pip install pydicom
+conda install torchio
 ```
 
 <a name="usage"/>
@@ -52,9 +53,26 @@ https://user-images.githubusercontent.com/39058024/196014602-3983c1c4-0622-42a1-
 
 https://user-images.githubusercontent.com/39058024/196014603-aabb0b38-e9df-4482-8379-211c7d9a6704.mp4
 
+The example below shows what augmented images may look like:
+
+https://user-images.githubusercontent.com/39058024/205505004-d3e53fb9-f7ae-45d5-9607-5249b086e8fa.mp4
+
 <a name="file-breakdown"/>
 
 # File Breakdown
+
+Our contributions center on the following files:
+
+1. **dcm_utils.py:** Helper functions for manipulating images in the DICOM format.
+2. **read_metadata.py:** Helper functions for reading in metadata.
+3. **train.py:** Our implementation of the NYU algorithm with training.
+4. **main.py:** Our three-layer convolutional neural network.
+5. **processing/remove_invalid.py:** Removes segmentation images.
+6. **processing/filtering.py:** Filters images by start / stop slice.
+7. **processing/downscale.py:** Downscales images to the lowest common resolution.
+8. **processing/test_dcm_utils.py:** Tests for dcm_utils.py
+9. **processing/test_architecture.py:** Testing our implementation of the NYU algorithm.
+10. **aliases.sh:** Bash commands for installing the appropriate dependencies.
 
 <a name="acknowledgements"/>
 
