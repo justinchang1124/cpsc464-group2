@@ -53,7 +53,7 @@ for key in dcm_study_dict:
     # get the median 50 elements
     i1 = 0  # int(med_index - num_per_study // 2)
     i2 = len(input_list)  # int(med_index + num_per_study // 2)
-    sep_len = 8
+    sep_len = 1
     median_indices += input_list[i1:i2:sep_len]  # space out b/c we don't want too-similar images
 
 # truncate

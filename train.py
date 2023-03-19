@@ -109,8 +109,8 @@ class MyDataset(Dataset):
         img_clamp = dcm_utils.perc_clamp_dcm_image(dcm_data.pixel_array, 1, 99)
         img_norm = dcm_utils.normalize_dcm_image(img_clamp)
         img_tensor = dcm_utils.dcm_image_to_tensor4d(img_norm)
-        img_aug = dcm_utils.augment_tensor4d(img_tensor)
-        return idx, img_aug, dcm_utils.label_to_one_hot(self.labels[idx]), self.groups[idx]
+        # img_aug = dcm_utils.augment_tensor4d(img_tensor)
+        return idx, img_tensor, dcm_utils.label_to_one_hot(self.labels[idx]), self.groups[idx]
 
 
 train_dataset = MyDataset(X_train_files, y_train, z_train)
@@ -345,8 +345,9 @@ def train(parameters: dict, callbacks: list = None):
             time_str = datetime.now().strftime("%d_%m_%Y-%H_%M_%S")
             dcm_utils.write_labels(test_preds, "{}/preds_{}_{}.txt".format(abs_proj_path, epoch_number, time_str))
             dcm_utils.write_labels(test_trues, "{}/trues_{}_{}.txt".format(abs_proj_path, epoch_number, time_str))
-            dcm_utils.write_labels(z_test, "{}/ztest_{}_{}.txt".format(abs_proj_path, epoch_number, time_str))
-            ea_dict, er_dict = dcm_utils.separate_by_group(test_preds, test_trues, test_group)
+            dcm_utils.write_labels(test_group, "{}/ztest_{}_{}.txt".format(abs_proj_path, epoch_number, time_str))
+            ea_dict = dcm_utils.separate_by_label(test_preds, test_group)
+            er_dict = dcm_utils.separate_by_label(test_trues, test_group)
             dcm_utils.summarize_ar_dict(ea_dict, er_dict)
 
             # Resolve schedulers at epoch
